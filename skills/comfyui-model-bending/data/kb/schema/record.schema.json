@@ -1,0 +1,262 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "record.json: facts about one render (recipe, setup, outputs). No interpretation lives here.",
+ "type": "object",
+ "required": [
+  "id",
+  "schema_version",
+  "source",
+  "created",
+  "license",
+  "consent",
+  "model",
+  "setup",
+  "bends",
+  "outputs"
+ ],
+ "properties": {
+  "id": {
+   "type": "string"
+  },
+  "schema_version": {
+   "type": "string"
+  },
+  "source": {
+   "enum": [
+    "paper",
+    "paper_reproduction",
+    "author_experiment",
+    "sweep",
+    "run",
+    "session",
+    "artist"
+   ]
+  },
+  "created": {
+   "type": "string"
+  },
+  "license": {
+   "type": "string"
+  },
+  "contributor": {
+   "type": "string"
+  },
+  "consent": {
+   "type": "object",
+   "required": [
+    "prompt",
+    "input_image"
+   ],
+   "properties": {
+    "prompt": {
+     "type": "boolean"
+    },
+    "input_image": {
+     "type": "boolean"
+    }
+   }
+  },
+  "model": {
+   "type": "object",
+   "required": [
+    "family"
+   ],
+   "properties": {
+    "family": {
+     "type": "string"
+    },
+    "arch": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "checkpoint": {
+     "type": "string"
+    },
+    "checkpoint_sha256": {
+     "type": "string"
+    }
+   }
+  },
+  "setup": {
+   "type": "object",
+   "properties": {
+    "route": {
+     "enum": [
+      "txt2img",
+      "img2img",
+      "unsample_resample",
+      "inpaint",
+      "txt2video",
+      "img2video",
+      "other"
+     ]
+    },
+    "seed": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "sampler": {
+     "type": "string"
+    },
+    "scheduler": {
+     "type": "string"
+    },
+    "steps": {
+     "type": "integer"
+    },
+    "cfg": {
+     "type": "number"
+    },
+    "width": {
+     "type": "integer"
+    },
+    "height": {
+     "type": "integer"
+    },
+    "denoise": {
+     "type": "number"
+    },
+    "end_at_frac": {
+     "type": "number"
+    },
+    "prompt": {
+     "type": "string",
+     "description": "only with consent.prompt"
+    },
+    "negative": {
+     "type": "string",
+     "description": "only with consent.prompt"
+    },
+    "prompt_key": {
+     "type": "string",
+     "description": "stands in for the prompt; salted when not shared"
+    },
+    "input_image": {
+     "type": "string",
+     "description": "only with consent.input_image"
+    },
+    "input_key": {
+     "type": "string"
+    },
+    "frames": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "description": "video length in frames (video routes)"
+    }
+   }
+  },
+  "bends": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "path",
+     "op",
+     "args",
+     "start",
+     "end",
+     "window",
+     "bucket"
+    ],
+    "properties": {
+     "path": {
+      "type": "string"
+     },
+     "op": {
+      "type": "string"
+     },
+     "args": {
+      "type": "object"
+     },
+     "group": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string"
+     },
+     "module_type": {
+      "type": "string",
+      "description": "torch class of the bent module, e.g. Conv2d, Linear, LayerNorm"
+     },
+     "container": {
+      "type": "string"
+     },
+     "start": {
+      "type": "number",
+      "description": "fraction of the steps where the bend starts, 0 = first step"
+     },
+     "end": {
+      "type": "number"
+     },
+     "window": {
+      "enum": [
+       "all",
+       "early",
+       "early_to_mid",
+       "middle",
+       "mid_to_end",
+       "late"
+      ]
+     },
+     "bucket": {
+      "type": "string",
+      "description": "coarse amount label, e.g. zero, damp, boost, quarter, heavy"
+     },
+     "t": {
+      "type": "array"
+     },
+     "steps": {
+      "type": "string"
+     },
+     "steps_min": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "steps_max": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "blend": {
+      "type": "number"
+     },
+     "label": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "outputs": {
+   "type": "object",
+   "required": [
+    "image"
+   ],
+   "properties": {
+    "image": {
+     "type": "string"
+    },
+    "input": {
+     "type": "string"
+    },
+    "latent": {
+     "type": "string"
+    },
+    "baseline_id": {
+     "type": "string"
+    }
+   }
+  },
+  "provenance": {
+   "type": "object"
+  }
+ }
+}

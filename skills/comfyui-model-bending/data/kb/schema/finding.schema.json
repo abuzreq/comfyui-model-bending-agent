@@ -1,0 +1,76 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "findings/<id>.json: a claim about many records, e.g. a paper's result. quote = the source's own words.",
+ "type": "object",
+ "required": [
+  "id",
+  "claim",
+  "quote",
+  "scope",
+  "author",
+  "citation",
+  "evidence"
+ ],
+ "properties": {
+  "id": {
+   "type": "string"
+  },
+  "claim": {
+   "type": "string"
+  },
+  "quote": {
+   "type": "boolean"
+  },
+  "scope": {
+   "type": "object",
+   "description": "lists of allowed values for cell fields: family, arch, checkpoint, group, kind, module_type, op, bucket, window, route"
+  },
+  "author": {
+   "type": "object",
+   "required": [
+    "type"
+   ],
+   "properties": {
+    "type": {
+     "enum": [
+      "human",
+      "ai"
+     ]
+    },
+    "name": {
+     "type": "string"
+    },
+    "role": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string",
+     "description": "exact model id when type is ai"
+    },
+    "prompt_version": {
+     "type": "string"
+    },
+    "tool": {
+     "type": "string"
+    }
+   },
+   "additionalProperties": false
+  },
+  "citation": {
+   "type": "object"
+  },
+  "evidence": {
+   "type": "object"
+  },
+  "level": {
+   "enum": [
+    "cell",
+    "general"
+   ]
+  },
+  "interpretations": {
+   "type": "array",
+   "description": "interpretations of the claim (e.g. effect tags), each with its author"
+  }
+ }
+}

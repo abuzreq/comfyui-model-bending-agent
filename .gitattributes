@@ -1,0 +1,7 @@
+# Store text with LF line endings, whatever the contributor's platform.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.mcpb binary
+*.zip binary

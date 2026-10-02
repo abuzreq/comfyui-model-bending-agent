@@ -1,0 +1,189 @@
+[
+ {
+  "id": "intake-defaults",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Bend my SD1.5 model to make this lighthouse prompt look weird: 'a lighthouse on a cliff at dusk, oil painting'",
+  "files": [],
+  "expected_behavior": [
+   "Runs the setup check first (comfy_canvas.py status or comfyui-bending:comfy_status) and reports free VRAM and whether Model-Bending is agent-ready",
+   "Asks the intake question once (effort L1/L2/L3 and autonomy A/B/C, plus model, budget and seed policy) or, if the user does not choose, states the default L1 + B in one line",
+   "Renders a baseline plus 3 candidates on one fixed seed, varying one factor, each bend with a label",
+   "Reads the ApplyBendsFromJSON report before judging, then runs metrics and looks at a contact sheet",
+   "Stops after the sweep and shows the Mode B checkpoint: one line per candidate with MAE, flags and a verdict, and a recommendation"
+  ]
+ },
+ {
+  "id": "mode-c-switchboard",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Put a switchboard on my ComfyUI canvas with three rotate-on-mid candidates so I can pick one myself.",
+  "files": [],
+  "expected_behavior": [
+   "Checks whether ComfyUI-Agent-Bridge is installed and picks switchboard_bridge_sd15 (bridge) or switchboard_sd15 (core only) accordingly",
+   "Adapts the preset (loaders, prompt, candidate labels matching the switch order, hypothesis in group titles) and builds it without unknown-node errors",
+   "Pre-runs the board once, then proposes it (propose / propose_workflow) or pushes it under workflows/agent_bending/ with a one-sentence instruction",
+   "Waits with events / wait_for_events (or wait-run) instead of asking the user to paste results",
+   "Interprets the pick, votes or direction text, says back in one line what it understood, and builds round 2",
+   "Never overwrites the user's own workflows and never turns on canvas sharing"
+  ]
+ },
+ {
+  "id": "l3-explain",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Why does multiplying output_blocks 9-11 by 1.8 give such a poster look? I want to know which layers and timesteps cause it.",
+  "files": [],
+  "expected_behavior": [
+   "Chooses L3 (Mechanistic XAI) and states a render budget before starting",
+   "Runs an ablation or intervention scan over layer groups x t-windows (structure / style / detail) using per-bend \"t\" windows, on at least 2 seeds",
+   "Uses timesteps.py / timestep_windows to confirm each window covers executed steps",
+   "Adds probe footprints or diff heat maps for the top cells",
+   "Writes up claims with evidence grades (causal / correlational / anecdotal) and limitations, and suggests 2-3 follow-up bends"
+  ]
+ },
+ {
+  "id": "animation",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Make a looping video of the bend I just ran, rotating from 0 to 180 degrees in small steps.",
+  "files": [],
+  "expected_behavior": [
+   "Uses the newest run as the source (animate.py --last-run, or start_animation with last_run=true)",
+   "Selects the bend by label, path or NODE#index and sets a small increment",
+   "Does a dry run first and reports frame count and duration against the budget before rendering",
+   "Looks at the filmstrip before presenting the video, and gives the video path"
+  ]
+ },
+ {
+  "id": "app-without-tools",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "(Claude app, comfyui-bending MCP server not registered) Bend my SDXL model's middle block and show me the result.",
+  "files": [],
+  "expected_behavior": [
+   "Recognises that neither the comfyui-bending tools nor a route to the user's ComfyUI are available",
+   "Tells the user plainly what is missing and points to references/setup.md (register the MCP server, restart the app, have ComfyUI running)",
+   "Does not pretend to render, and does not present old files as new results"
+  ]
+ },
+ {
+  "id": "old-install",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Gate a rotate bend on the mid block to the structure window only.",
+  "files": [],
+  "setup": "Model-Bending installed without the report output on ApplyBendsFromJSON",
+  "expected_behavior": [
+   "Detects agent_ready = false from the status check",
+   "Follows 'Older Model-Bending installs': targets a child path such as middle_block.1 and uses a steps window computed with timesteps.py",
+   "Tells the user which features are missing and that updating Model-Bending enables t-windows and reports"
+  ]
+ },
+ {
+  "id": "in-chat-board",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Make my lighthouse picture stormier, but let me choose between a few options.",
+  "files": [],
+  "setup": "Claude app with the comfyui-bending extension installed (the show_board tool is available); ComfyUI running with Model-Bending",
+  "expected_behavior": [
+   "Renders a baseline plus 2-4 versions on the same seed, then calls show_board once with the original, one plain-language caption per version and recommended on its pick",
+   "Stops after show_board and waits for the artist's answer instead of describing the pictures again or asking them to open ComfyUI",
+   "Reads the answer with board_feedback; if several versions were picked, says in one line whether it will bisect between them or combine them",
+   "Uses everyday words in captions and replies (no layer paths, MAE or JSON unless asked)"
+  ]
+ },
+ {
+  "id": "kb-source-choice",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "I want more abstract results on SD1.4. Start me off with some bending recipes.",
+  "files": [],
+  "expected_behavior": [
+   "Asks where to start from, in plain words: the shared bend knowledge base, the user's own earlier sessions, both, or explore fresh; does not choose for them",
+   "Stores the answer with kb_sources (or kb_local.py sources) before calling find_recipes",
+   "If the user picks the community base, calls find_recipes with the goal and arch sd14, and turns the top results into the first sweep's candidates",
+   "When relaying results, keeps facts (recipe, setup, how many renders, seeds and prompts) apart from interpretation, and says who interpreted: the paper's authors, the artist, or an AI model by name",
+   "States the evidence in words (seen once vs replicated across prompts and seeds) and flags results tested on other sd1 checkpoints as leads, not promises"
+  ]
+ },
+ {
+  "id": "kb-none",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Bend SD1.5 on 'a red apple on a white table'. Don't use any stored recipes or knowledge base, I want to explore fresh.",
+  "files": [],
+  "expected_behavior": [
+   "Records the choice as none (kb_sources ... none) or simply does not consult it",
+   "Never calls find_recipes in the session",
+   "Still logs each judged round in the user's own knowledge base with log_round (local only), labelling its own captions with its model id"
+  ]
+ },
+ {
+  "id": "start-image",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Start from my picture C:\\Users\\me\\Pictures\\harbour.png and bend SD1.5 so it looks like a dream, but keep the composition.",
+  "files": [],
+  "expected_behavior": [
+   "Uploads the picture into ComfyUI (upload_image or comfy_canvas.py upload) instead of asking the user to copy it into a folder, and uses the returned name",
+   "Asks or infers how closely to follow the picture in plain words, and maps 'keep the composition' to a denoise of about 0.5-0.65",
+   "Builds with start_image (build_workflow start_image= or build --start-image), so the samplers start from the picture",
+   "Says plainly that at that denoise the bends restyle the picture but cannot re-compose it",
+   "Shows the picture as the original next to the versions and describes each version against it"
+  ]
+ },
+ {
+  "id": "start-from-a-version",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "I like B. Use it as the starting picture for the next round and push the colours further.",
+  "files": [],
+  "expected_behavior": [
+   "Uploads version B from its /api/view URL with upload_image (or comfy_canvas.py upload URL)",
+   "Builds the next round with start_image set to the returned name and a moderate denoise",
+   "Keeps the same seed policy and shows B as the original on the board or sheet"
+  ]
+ },
+ {
+  "id": "video-bending",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Can you bend a video model? Make a short WAN clip of a horse on a beach and show me three strange versions.",
+  "files": [],
+  "expected_behavior": [
+   "Checks video_ready in the status (Model-Bending 0.3+) and that the WAN model files are present (list_models), and asks before suggesting any download; never downloads models itself",
+   "Says once, in plain words, that video bending is experimental, and states the render cost before the sweep",
+   "Starts from the video_sweep_wan21_t2v preset (attention_bends per candidate, strict, report wired, SaveAnimatedWEBP) and keeps the clip short",
+   "Reads each candidate's report (attention_bends blocks and steps) before judging",
+   "Measures with compare_images (motion, motion_ratio, frozen / flicker flags) and looks at filmstrips (view_images) before captioning",
+   "Shows the versions on the in-chat board (videos play as loops) or a filmstrip sheet, with captions about what happens over time"
+  ]
+ },
+ {
+  "id": "video-over-time",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Animate that WAN bend so it gets stronger over the clip.",
+  "files": [],
+  "expected_behavior": [
+   "Does not run animate.py / start_animation on the video workflow (each render is already a video)",
+   "Wraps the bend in frame_ramp (w_start 0, w_end 1, a curve) inside the attention_bends item and renders once",
+   "Checks mae_by_frame grows over the clip and looks at the filmstrip before showing it"
+  ]
+ }
+]

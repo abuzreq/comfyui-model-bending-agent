@@ -1,0 +1,14 @@
+{
+  "name": "comfyui-model-bending-agent",
+  "description": "Agent skill for ComfyUI-Model-Bending: bend, steer and explain image and video models in your local ComfyUI.",
+  "owner": {
+    "name": "Ahmed Abuzuraiq"
+  },
+  "plugins": [
+    {
+      "name": "comfyui-model-bending",
+      "source": "./",
+      "description": "Explore, steer and explain image and video diffusion models by bending their activations in your local ComfyUI (ComfyUI-Model-Bending): start from a prompt or your own picture, with autonomous, co-pilot and interactive canvas modes, an in-chat pick board, bend animations and a shared bend knowledge base."
+    }
+  ]
+}

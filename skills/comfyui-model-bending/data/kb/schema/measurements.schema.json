@@ -1,0 +1,17 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "measurements.json: numbers computed from a record's images or latents. Each value names its method, and its model when a learned model was used.",
+ "type": "object",
+ "required": [
+  "record",
+  "values"
+ ],
+ "properties": {
+  "record": {
+   "type": "string"
+  },
+  "values": {
+   "type": "object"
+  }
+ }
+}

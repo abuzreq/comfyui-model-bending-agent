@@ -1,0 +1,77 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write  # attach files to the release on tags
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Compile the scripts
+        run: python -m py_compile skills/comfyui-model-bending/scripts/*.py tools/build_dist.py
+
+      - name: Server starts and lists its tools (no ComfyUI needed)
+        run: |
+          uv run --no-project --with mcp python - <<'PY'
+          import asyncio
+          from mcp import ClientSession, StdioServerParameters
+          from mcp.client.stdio import stdio_client
+          async def main():
+              p = StdioServerParameters(command="uvx", args=["--from", ".", "comfyui-bending-mcp"])
+              async with stdio_client(p) as (r, w), ClientSession(r, w) as s:
+                  await s.initialize()
+                  tools = (await s.list_tools()).tools
+                  assert len(tools) >= 20, len(tools)
+                  preset = await s.call_tool("get_preset", {"name": "slider_board_sd15"})
+                  assert not getattr(preset, "is_error", getattr(preset, "isError", False))
+                  board = next(t for t in tools if t.name == "show_board")
+                  uri = board.meta["ui"]["resourceUri"]
+                  page = (await s.read_resource(uri)).contents[0]
+                  assert page.mime_type == "text/html;profile=mcp-app", page.mime_type
+                  assert "globalThis.ExtApps={" in page.text and 'src="http' not in page.text
+                  print(len(tools), "tools; board view", len(page.text), "chars")
+          asyncio.run(main())
+          PY
+
+      - name: Tests (stub ComfyUI, no GPU)
+        run: uv run --no-project --with "mcp>=2.2" --with pytest --with pillow --with numpy pytest tests -q
+
+      - name: Build the skill ZIP and the Claude Desktop extension
+        run: python tools/build_dist.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/comfyui-model-bending.zip
+            dist/comfyui-bending.mcpb
+
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(python -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != version $v"; exit 1; }
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/comfyui-model-bending.zip
+            dist/comfyui-bending.mcpb

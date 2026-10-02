@@ -1,0 +1,418 @@
+{
+ "meta": {
+  "preset": "video_sweep",
+  "arch": "wan21",
+  "experimental": true,
+  "session": "demo",
+  "round": 1,
+  "candidates": {
+   "A": "rotate the prompt's attention 12° · middle blocks 13-18 · early steps 0-2",
+   "B": "sharpen the prompt's attention · every block, every step",
+   "C": "rotation that grows over the clip, 0 → 30° · blocks 13-18 · steps 0-4"
+  },
+  "models": "diffusion_models/wan2.1_t2v_1.3B_fp16.safetensors, text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors, vae/wan_2.1_vae.safetensors"
+ },
+ "groups": [
+  {
+   "id": "base",
+   "title": "Base · WAN 2.1 text-to-video 1.3B, shared prompt and seed",
+   "color": "#444444"
+  },
+  {
+   "id": "cand0",
+   "title": "0 · baseline (no bend)",
+   "color": "#555555"
+  },
+  {
+   "id": "candA",
+   "title": "A · rotate the prompt's attention 12° · middle blocks 13-18 · early steps 0-2",
+   "color": "#3f5159"
+  },
+  {
+   "id": "candB",
+   "title": "B · sharpen the prompt's attention · every block, every step",
+   "color": "#335533"
+  },
+  {
+   "id": "candC",
+   "title": "C · rotation that grows over the clip, 0 → 30° · blocks 13-18 · steps 0-4",
+   "color": "#553355"
+  }
+ ],
+ "nodes": {
+  "unet": {
+   "class_type": "UNETLoader",
+   "group": "base",
+   "inputs": {
+    "unet_name": "wan2.1_t2v_1.3B_fp16.safetensors",
+    "weight_dtype": "default"
+   }
+  },
+  "clip": {
+   "class_type": "CLIPLoader",
+   "group": "base",
+   "inputs": {
+    "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+    "type": "wan",
+    "device": "default"
+   }
+  },
+  "vae": {
+   "class_type": "VAELoader",
+   "group": "base",
+   "inputs": {
+    "vae_name": "wan_2.1_vae.safetensors"
+   }
+  },
+  "shift": {
+   "class_type": "ModelSamplingSD3",
+   "group": "base",
+   "inputs": {
+    "model": [
+     "unet",
+     0
+    ],
+    "shift": 8.0
+   }
+  },
+  "pos": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Prompt",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "A white horse gallops along a beach at sunset, waves crashing around its legs, cinematic, golden light"
+   }
+  },
+  "neg": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Negative",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "blurry, low quality, static, distorted, deformed, watermark, text, subtitles"
+   }
+  },
+  "lat": {
+   "class_type": "EmptyHunyuanLatentVideo",
+   "group": "base",
+   "title": "640×368, 25 frames (≈1.5 s)",
+   "inputs": {
+    "width": 640,
+    "height": 368,
+    "length": 25,
+    "batch_size": 1
+   }
+  },
+  "ks0": {
+   "class_type": "KSampler",
+   "group": "cand0",
+   "inputs": {
+    "model": [
+     "shift",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 42,
+    "steps": 10,
+    "cfg": 6.0,
+    "sampler_name": "uni_pc",
+    "scheduler": "simple",
+    "denoise": 1.0
+   }
+  },
+  "dec0": {
+   "class_type": "VAEDecode",
+   "group": "cand0",
+   "inputs": {
+    "samples": [
+     "ks0",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "save0": {
+   "class_type": "SaveAnimatedWEBP",
+   "group": "cand0",
+   "title": "0 · baseline",
+   "inputs": {
+    "images": [
+     "dec0",
+     0
+    ],
+    "filename_prefix": "agent_bending/wan_t2v_baseline",
+    "fps": 16.0,
+    "lossless": false,
+    "quality": 85,
+    "method": "default"
+   }
+  },
+  "bendA": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "candA",
+   "title": "A bends",
+   "inputs": {
+    "model": [
+     "shift",
+     0
+    ],
+    "bends_json": "{\"version\": 1.1, \"bends\": [], \"attention_bends\": [{\"label\": \"A\", \"module_type\": \"rotate\", \"module_args\": {\"angle_degrees\": 12}, \"attention\": \"cross_text\", \"blocks\": \"13-18\", \"tokens\": \"all\", \"renormalize\": \"keys\", \"steps\": \"0-2\"}]}",
+    "strict": true
+   }
+  },
+  "repA": {
+   "class_type": "PreviewAny",
+   "group": "candA",
+   "title": "A report",
+   "inputs": {
+    "source": [
+     "bendA",
+     1
+    ]
+   }
+  },
+  "ksA": {
+   "class_type": "KSampler",
+   "group": "candA",
+   "inputs": {
+    "model": [
+     "bendA",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 42,
+    "steps": 10,
+    "cfg": 6.0,
+    "sampler_name": "uni_pc",
+    "scheduler": "simple",
+    "denoise": 1.0
+   }
+  },
+  "decA": {
+   "class_type": "VAEDecode",
+   "group": "candA",
+   "inputs": {
+    "samples": [
+     "ksA",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "saveA": {
+   "class_type": "SaveAnimatedWEBP",
+   "group": "candA",
+   "title": "A",
+   "inputs": {
+    "images": [
+     "decA",
+     0
+    ],
+    "filename_prefix": "agent_bending/wan_t2v_A",
+    "fps": 16.0,
+    "lossless": false,
+    "quality": 85,
+    "method": "default"
+   }
+  },
+  "bendB": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "candB",
+   "title": "B bends",
+   "inputs": {
+    "model": [
+     "shift",
+     0
+    ],
+    "bends_json": "{\"version\": 1.1, \"bends\": [], \"attention_bends\": [{\"label\": \"B\", \"module_type\": \"sharpen\", \"module_args\": {\"amount\": 1.0, \"sigma\": 1.0}, \"attention\": \"cross_text\", \"blocks\": \"*\", \"tokens\": \"all\", \"renormalize\": \"keys\"}]}",
+    "strict": true
+   }
+  },
+  "repB": {
+   "class_type": "PreviewAny",
+   "group": "candB",
+   "title": "B report",
+   "inputs": {
+    "source": [
+     "bendB",
+     1
+    ]
+   }
+  },
+  "ksB": {
+   "class_type": "KSampler",
+   "group": "candB",
+   "inputs": {
+    "model": [
+     "bendB",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 42,
+    "steps": 10,
+    "cfg": 6.0,
+    "sampler_name": "uni_pc",
+    "scheduler": "simple",
+    "denoise": 1.0
+   }
+  },
+  "decB": {
+   "class_type": "VAEDecode",
+   "group": "candB",
+   "inputs": {
+    "samples": [
+     "ksB",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "saveB": {
+   "class_type": "SaveAnimatedWEBP",
+   "group": "candB",
+   "title": "B",
+   "inputs": {
+    "images": [
+     "decB",
+     0
+    ],
+    "filename_prefix": "agent_bending/wan_t2v_B",
+    "fps": 16.0,
+    "lossless": false,
+    "quality": 85,
+    "method": "default"
+   }
+  },
+  "bendC": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "candC",
+   "title": "C bends",
+   "inputs": {
+    "model": [
+     "shift",
+     0
+    ],
+    "bends_json": "{\"version\": 1.1, \"bends\": [], \"attention_bends\": [{\"label\": \"C\", \"module_type\": \"frame_ramp\", \"module_args\": {\"w_start\": 0.0, \"w_end\": 1.0, \"curve\": \"smooth\"}, \"inner\": {\"module_type\": \"rotate\", \"module_args\": {\"angle_degrees\": 30}}, \"attention\": \"cross_text\", \"blocks\": \"13-18\", \"tokens\": \"all\", \"renormalize\": \"keys\", \"steps\": \"0-4\"}]}",
+    "strict": true
+   }
+  },
+  "repC": {
+   "class_type": "PreviewAny",
+   "group": "candC",
+   "title": "C report",
+   "inputs": {
+    "source": [
+     "bendC",
+     1
+    ]
+   }
+  },
+  "ksC": {
+   "class_type": "KSampler",
+   "group": "candC",
+   "inputs": {
+    "model": [
+     "bendC",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 42,
+    "steps": 10,
+    "cfg": 6.0,
+    "sampler_name": "uni_pc",
+    "scheduler": "simple",
+    "denoise": 1.0
+   }
+  },
+  "decC": {
+   "class_type": "VAEDecode",
+   "group": "candC",
+   "inputs": {
+    "samples": [
+     "ksC",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "saveC": {
+   "class_type": "SaveAnimatedWEBP",
+   "group": "candC",
+   "title": "C",
+   "inputs": {
+    "images": [
+     "decC",
+     0
+    ],
+    "filename_prefix": "agent_bending/wan_t2v_C",
+    "fps": 16.0,
+    "lossless": false,
+    "quality": 85,
+    "method": "default"
+   }
+  }
+ }
+}

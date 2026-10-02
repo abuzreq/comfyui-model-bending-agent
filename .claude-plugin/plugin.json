@@ -1,0 +1,22 @@
+{
+  "name": "comfyui-model-bending",
+  "version": "0.3.0",
+  "description": "Explore, steer and explain image and video diffusion models by bending their activations in your local ComfyUI (ComfyUI-Model-Bending): start from a prompt or your own picture, with autonomous, co-pilot and interactive canvas modes, an in-chat pick board, bend animations and a shared bend knowledge base.",
+  "author": {
+    "name": "Ahmed Abuzuraiq"
+  },
+  "homepage": "https://github.com/abuzreq/comfyui-model-bending-agent",
+  "repository": "https://github.com/abuzreq/comfyui-model-bending-agent",
+  "license": "MIT",
+  "keywords": [
+    "comfyui",
+    "diffusion",
+    "model-bending",
+    "stable-diffusion",
+    "flux",
+    "wan",
+    "video",
+    "explainability",
+    "creative-ai"
+  ]
+}

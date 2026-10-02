@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.4",
+  "name": "comfyui-bending",
+  "display_name": "ComfyUI Model Bending",
+  "version": "0.3.0",
+  "description": "Lets Claude drive your local ComfyUI for the comfyui-model-bending skill: build and run bend workflows for pictures and videos, start from your own picture, compare results, propose boards to your canvas, read your feedback, and render bend animations.",
+  "long_description": "Companion to the comfyui-model-bending skill. The skill's own code runs in a sandbox that cannot reach ComfyUI on your computer; this extension runs on your computer and does that part.\n\nRequires ComfyUI with the ComfyUI-Model-Bending node pack (0.3 or newer for bending WAN video models, which is experimental). Claude can start from a picture on your computer: it copies it into ComfyUI's input folder. Claude shows you the versions it made on a pick board right in the chat: choose one or several, say what to keep or change, and send. ComfyUI-Agent-Bridge is optional: with it, Claude can also propose workflows into your open ComfyUI tab and receive your votes and picks. ffmpeg on the PATH enables .mp4 animations (otherwise .gif).\n\nNothing leaves your machine except what Claude reads through the tools: images are downscaled JPEGs (videos: short downscaled loops), and the Agent-Bridge token is never returned.",
+  "author": {
+    "name": "Ahmed Abuzuraiq"
+  },
+  "license": "MIT",
+  "keywords": [
+    "comfyui",
+    "diffusion",
+    "model bending",
+    "stable diffusion",
+    "flux",
+    "explainability",
+    "creative ai"
+  ],
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "scripts/mcp_server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "scripts/mcp_server.py"
+      ],
+      "env": {
+        "COMFYUI_URL": "${user_config.comfyui_url}",
+        "COMFY_BENDING_WORKDIR": "${user_config.workdir}"
+      }
+    }
+  },
+  "user_config": {
+    "comfyui_url": {
+      "type": "string",
+      "title": "ComfyUI address",
+      "description": "Where your ComfyUI server runs.",
+      "default": "http://127.0.0.1:8188",
+      "required": true
+    },
+    "workdir": {
+      "type": "directory",
+      "title": "Working folder",
+      "description": "Where built workflows and animations are saved.",
+      "default": "${HOME}/.comfyui-model-bending",
+      "required": false
+    }
+  },
+  "tools": [],
+  "compatibility": {
+    "platforms": [
+      "win32",
+      "darwin",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

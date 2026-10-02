@@ -1,0 +1,323 @@
+{
+ "version": "1",
+ "description": "Controlled effect tags. Captioners pick tags from this list; find_recipes maps a user's words to tags through the synonyms. Add a tag by PR with a description and synonyms.",
+ "tags": {
+  "abstract": {
+   "description": "The picture moves away from recognisable things toward shapes, colour fields and marks.",
+   "synonyms": [
+    "abstraction",
+    "non figurative",
+    "nonfigurative",
+    "less literal",
+    "less realistic",
+    "dissolved",
+    "dissolve",
+    "abstracted"
+   ]
+  },
+  "new_composition": {
+   "description": "The layout changes: objects move, appear or are re-staged; a different scene arrangement.",
+   "synonyms": [
+    "recompose",
+    "recomposed",
+    "new layout",
+    "rearranged",
+    "different composition",
+    "new arrangement",
+    "re-staged",
+    "composition"
+   ]
+  },
+  "fragmented": {
+   "description": "The image breaks into pieces, shards, tiles or collage-like parts.",
+   "synonyms": [
+    "fragments",
+    "shattered",
+    "collage",
+    "broken up",
+    "splintered",
+    "cubist",
+    "fractured"
+   ]
+  },
+  "painterly": {
+   "description": "Looks painted: visible strokes, softened forms, illustration or paint handling.",
+   "synonyms": [
+    "painting",
+    "painted",
+    "brushy",
+    "brushstrokes",
+    "impressionist",
+    "illustration",
+    "illustrative"
+   ]
+  },
+  "blur": {
+   "description": "Softer, out of focus, smeared or hazy forms.",
+   "synonyms": [
+    "blurry",
+    "blurred",
+    "soft",
+    "hazy",
+    "smeared",
+    "out of focus",
+    "smudged"
+   ]
+  },
+  "washed_out": {
+   "description": "Fog-like veil, faded or low-contrast image, as if wiped.",
+   "synonyms": [
+    "fog",
+    "foggy",
+    "faded",
+    "veiled",
+    "wiped",
+    "milky",
+    "pale"
+   ]
+  },
+  "poster": {
+   "description": "Flat colour areas and hard edges, like a poster or screen print.",
+   "synonyms": [
+    "posterized",
+    "posterised",
+    "flat colour",
+    "flat color",
+    "graphic",
+    "screen print",
+    "cel shaded"
+   ]
+  },
+  "saturated": {
+   "description": "Colours become more intense.",
+   "synonyms": [
+    "vivid",
+    "intense colour",
+    "intense color",
+    "oversaturated",
+    "colourful",
+    "colorful"
+   ]
+  },
+  "desaturated": {
+   "description": "Colours drain toward grey or monochrome.",
+   "synonyms": [
+    "muted",
+    "grey",
+    "gray",
+    "monochrome",
+    "black and white",
+    "colourless"
+   ]
+  },
+  "colour_shift": {
+   "description": "The palette or hue changes.",
+   "synonyms": [
+    "hue shift",
+    "recoloured",
+    "recolored",
+    "palette change",
+    "color shift",
+    "different colours",
+    "tint"
+   ]
+  },
+  "dark": {
+   "description": "Darker overall, low key or night-like.",
+   "synonyms": [
+    "darker",
+    "night",
+    "low key",
+    "shadowy",
+    "gloomy"
+   ]
+  },
+  "bright": {
+   "description": "Brighter, high key or overexposed.",
+   "synonyms": [
+    "brighter",
+    "overexposed",
+    "high key",
+    "glowing",
+    "luminous"
+   ]
+  },
+  "high_contrast": {
+   "description": "Stronger light/dark separation.",
+   "synonyms": [
+    "contrasty",
+    "harsh contrast",
+    "punchy",
+    "dramatic lighting"
+   ]
+  },
+  "texture": {
+   "description": "New surface texture, grain or noise-like marks.",
+   "synonyms": [
+    "grain",
+    "grainy",
+    "noisy",
+    "speckled",
+    "textured",
+    "rough"
+   ]
+  },
+  "pattern": {
+   "description": "Repetition, tiling or ornament spreads across the image.",
+   "synonyms": [
+    "repetition",
+    "repeated",
+    "tiling",
+    "tiled",
+    "ornament",
+    "ornamental",
+    "decorative",
+    "motif"
+   ]
+  },
+  "fine_detail": {
+   "description": "Small, intricate additions without changing the overall structure.",
+   "synonyms": [
+    "intricate",
+    "filigree",
+    "detailed",
+    "decorative detail",
+    "micro detail"
+   ]
+  },
+  "geometric": {
+   "description": "Straight lines, grids or simple shapes appear.",
+   "synonyms": [
+    "shapes",
+    "lines",
+    "grid",
+    "angular",
+    "geometric shapes"
+   ]
+  },
+  "glitch": {
+   "description": "Digital-looking artefacts: bands, offsets, broken pixels.",
+   "synonyms": [
+    "glitchy",
+    "artifacts",
+    "artefacts",
+    "digital glitch",
+    "corrupted",
+    "datamosh"
+   ]
+  },
+  "framing": {
+   "description": "A frame, border or picture-within-picture appears.",
+   "synonyms": [
+    "frame",
+    "framed",
+    "border",
+    "vignette",
+    "frame within frame",
+    "painting within a frame"
+   ]
+  },
+  "zoom": {
+   "description": "The view moves closer or further; crop changes.",
+   "synonyms": [
+    "zoomed",
+    "closer",
+    "close up",
+    "crop",
+    "cropped",
+    "zoom out",
+    "wider"
+   ]
+  },
+  "symmetry": {
+   "description": "Mirrored or radially symmetric structure.",
+   "synonyms": [
+    "symmetric",
+    "symmetrical",
+    "mirrored",
+    "kaleidoscope",
+    "kaleidoscopic"
+   ]
+  },
+  "distorted": {
+   "description": "Shapes warp, melt, stretch or twist.",
+   "synonyms": [
+    "warped",
+    "melted",
+    "melting",
+    "stretched",
+    "twisted",
+    "deformed",
+    "distortion"
+   ]
+  },
+  "surreal": {
+   "description": "Dreamlike or uncanny combinations.",
+   "synonyms": [
+    "dreamlike",
+    "dreamy",
+    "uncanny",
+    "strange",
+    "weird",
+    "otherworldly"
+   ]
+  },
+  "subject_kept": {
+   "description": "The main subject stays recognisable.",
+   "synonyms": [
+    "same subject",
+    "keep the subject",
+    "subject preserved",
+    "identity kept",
+    "keeps the subject",
+    "recognisable"
+   ]
+  },
+  "subject_lost": {
+   "description": "The main subject disappears or becomes unrecognisable.",
+   "synonyms": [
+    "subject gone",
+    "unrecognisable",
+    "unrecognizable",
+    "loses the subject"
+   ]
+  },
+  "style_change": {
+   "description": "The rendering style changes while the content stays.",
+   "synonyms": [
+    "restyle",
+    "restyled",
+    "new style",
+    "different style",
+    "style transfer",
+    "stylized",
+    "stylised"
+   ]
+  },
+  "subtle": {
+   "description": "A small, refined change.",
+   "synonyms": [
+    "slight",
+    "gentle",
+    "small change",
+    "barely",
+    "subtle change",
+    "refined"
+   ]
+  },
+  "degenerate": {
+   "description": "Falls apart into mush, static, blobs or a flat field.",
+   "synonyms": [
+    "collapse",
+    "collapsed",
+    "mush",
+    "static",
+    "blob",
+    "blobs",
+    "noise field",
+    "broken image",
+    "garbage"
+   ]
+  }
+ }
+}

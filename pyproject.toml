@@ -1,0 +1,37 @@
+# Makes the skill's MCP server runnable without paths, from this repository or (later) PyPI:
+#   uvx --from git+https://github.com/abuzreq/comfyui-model-bending-agent comfyui-bending-mcp
+# The wheel packages the skill's scripts/, presets/ and data/ as comfyui_bending/, the layout the server expects.
+[project]
+name = "comfyui-bending-mcp"
+version = "0.3.0"
+description = "MCP server for the comfyui-model-bending agent skill: drives a local ComfyUI with ComfyUI-Model-Bending."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ahmed Abuzuraiq" }]
+keywords = ["comfyui", "mcp", "model-bending", "stable-diffusion", "video", "agent-skills"]
+dependencies = ["mcp>=2.2", "numpy>=1.24", "pillow>=10"]
+
+[project.urls]
+Homepage = "https://github.com/abuzreq/comfyui-model-bending-agent"
+Issues = "https://github.com/abuzreq/comfyui-model-bending-agent/issues"
+Changelog = "https://github.com/abuzreq/comfyui-model-bending-agent/blob/main/CHANGELOG.md"
+
+[project.scripts]
+comfyui-bending-mcp = "comfyui_bending.scripts.mcp_server:main"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"skills/comfyui-model-bending/scripts" = "comfyui_bending/scripts"
+"skills/comfyui-model-bending/presets" = "comfyui_bending/presets"
+"skills/comfyui-model-bending/data" = "comfyui_bending/data"
+
+[tool.hatch.build.targets.sdist]
+include = ["skills/comfyui-model-bending", "README.md", "LICENSE", "pyproject.toml"]

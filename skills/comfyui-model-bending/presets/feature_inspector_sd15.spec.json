@@ -1,0 +1,477 @@
+{
+ "meta": {
+  "preset": "feature_map_inspector",
+  "session": "demo",
+  "arch": "sd15",
+  "note": "Visualize Feature Map (agent-ready Model-Bending) sees upstream bends, is normalised; timestep = 1-based step. The probe heat map shows where the bend's effect propagates."
+ },
+ "groups": [
+  {
+   "id": "base",
+   "title": "Base · loaders, prompt, sampler, schedule",
+   "color": "#444444"
+  },
+  {
+   "id": "probe",
+   "title": "🔬 What to inspect · the bend and the step",
+   "color": "#a1309b"
+  },
+  {
+   "id": "maps",
+   "title": "Feature maps · unbent vs bent at the chosen step",
+   "color": "#3f5159"
+  },
+  {
+   "id": "act",
+   "title": "Activation probe · how far the bend propagates",
+   "color": "#335533"
+  }
+ ],
+ "nodes": {
+  "ckpt": {
+   "class_type": "CheckpointLoaderSimple",
+   "group": "base",
+   "inputs": {
+    "ckpt_name": "LCM_Dreamshaper_v7_4k.safetensors"
+   }
+  },
+  "msd": {
+   "class_type": "ModelSamplingDiscrete",
+   "group": "base",
+   "inputs": {
+    "model": [
+     "ckpt",
+     0
+    ],
+    "sampling": "lcm",
+    "zsnr": false
+   }
+  },
+  "clip": {
+   "class_type": "CLIPLoader",
+   "group": "base",
+   "inputs": {
+    "clip_name": "model_v1-4.safetensors",
+    "type": "stable_diffusion"
+   }
+  },
+  "vae": {
+   "class_type": "VAELoader",
+   "group": "base",
+   "inputs": {
+    "vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"
+   }
+  },
+  "pos": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Prompt",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "a lighthouse on a sea cliff at dusk, oil painting"
+   }
+  },
+  "neg": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Negative",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "lowres, blurry, jpeg artifacts, watermark, text"
+   }
+  },
+  "lat": {
+   "class_type": "EmptyLatentImage",
+   "group": "base",
+   "inputs": {
+    "width": 512,
+    "height": 512,
+    "batch_size": 1
+   }
+  },
+  "smp": {
+   "class_type": "KSamplerSelect",
+   "group": "base",
+   "inputs": {
+    "sampler_name": "lcm"
+   }
+  },
+  "sch": {
+   "class_type": "BasicScheduler",
+   "group": "base",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "scheduler": "sgm_uniform",
+    "steps": 6,
+    "denoise": 1.0
+   }
+  },
+  "step": {
+   "class_type": "PrimitiveFloat",
+   "group": "probe",
+   "title": "🎚 step to inspect (1-based; 0 = last)",
+   "inputs": {
+    "value": 1.0
+   }
+  },
+  "bend": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "probe",
+   "title": "Bend under inspection",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "bends_json": "{\"bends\": [{\"path\": \"input_blocks.4.0\", \"module_type\": \"scale\", \"module_args\": {\"scale_factor\": 0.7}, \"t\": [1.0, 0.7]}]}"
+   }
+  },
+  "fmUm": {
+   "class_type": "Visualize Feature Map",
+   "group": "maps",
+   "title": "unbent · middle_block.1",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "layer_path": "middle_block.1",
+    "timestep": [
+     "step",
+     0
+    ],
+    "noise_seed": 7,
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "cfg": 1.5,
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "sampler": [
+     "smp",
+     0
+    ],
+    "sigmas": [
+     "sch",
+     0
+    ]
+   }
+  },
+  "fmUmp": {
+   "class_type": "PreviewImage",
+   "group": "maps",
+   "title": "unbent map · middle_block.1",
+   "inputs": {
+    "images": [
+     "fmUm",
+     1
+    ]
+   }
+  },
+  "fmUo": {
+   "class_type": "Visualize Feature Map",
+   "group": "maps",
+   "title": "unbent · output_blocks.5.0",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "layer_path": "output_blocks.5.0",
+    "timestep": [
+     "step",
+     0
+    ],
+    "noise_seed": 7,
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "cfg": 1.5,
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "sampler": [
+     "smp",
+     0
+    ],
+    "sigmas": [
+     "sch",
+     0
+    ]
+   }
+  },
+  "fmUop": {
+   "class_type": "PreviewImage",
+   "group": "maps",
+   "title": "unbent map · output_blocks.5.0",
+   "inputs": {
+    "images": [
+     "fmUo",
+     1
+    ]
+   }
+  },
+  "fmBm": {
+   "class_type": "Visualize Feature Map",
+   "group": "maps",
+   "title": "bent · middle_block.1",
+   "inputs": {
+    "model": [
+     "bend",
+     0
+    ],
+    "layer_path": "middle_block.1",
+    "timestep": [
+     "step",
+     0
+    ],
+    "noise_seed": 7,
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "cfg": 1.5,
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "sampler": [
+     "smp",
+     0
+    ],
+    "sigmas": [
+     "sch",
+     0
+    ]
+   }
+  },
+  "fmBmp": {
+   "class_type": "PreviewImage",
+   "group": "maps",
+   "title": "bent map · middle_block.1",
+   "inputs": {
+    "images": [
+     "fmBm",
+     1
+    ]
+   }
+  },
+  "fmBo": {
+   "class_type": "Visualize Feature Map",
+   "group": "maps",
+   "title": "bent · output_blocks.5.0",
+   "inputs": {
+    "model": [
+     "bend",
+     0
+    ],
+    "layer_path": "output_blocks.5.0",
+    "timestep": [
+     "step",
+     0
+    ],
+    "noise_seed": 7,
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "cfg": 1.5,
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "sampler": [
+     "smp",
+     0
+    ],
+    "sigmas": [
+     "sch",
+     0
+    ]
+   }
+  },
+  "fmBop": {
+   "class_type": "PreviewImage",
+   "group": "maps",
+   "title": "bent map · output_blocks.5.0",
+   "inputs": {
+    "images": [
+     "fmBo",
+     1
+    ]
+   }
+  },
+  "p0": {
+   "class_type": "ActivationProbe",
+   "group": "act",
+   "title": "probe · unbent run",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "sites": "auto",
+    "store": "stats"
+   }
+  },
+  "k0": {
+   "class_type": "KSampler",
+   "inputs": {
+    "model": [
+     "p0",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 7,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   },
+   "group": "act"
+  },
+  "r0": {
+   "class_type": "ReadActivationProbe",
+   "group": "act",
+   "title": "reference (unbent)",
+   "inputs": {
+    "probe": [
+     "p0",
+     1
+    ],
+    "latent": [
+     "k0",
+     0
+    ],
+    "stat": "std",
+    "alert_ratio": 10.0
+   }
+  },
+  "p1": {
+   "class_type": "ActivationProbe",
+   "group": "act",
+   "title": "probe · bent run",
+   "inputs": {
+    "model": [
+     "bend",
+     0
+    ],
+    "sites": "auto",
+    "store": "stats"
+   }
+  },
+  "k1": {
+   "class_type": "KSampler",
+   "inputs": {
+    "model": [
+     "p1",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 7,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   },
+   "group": "act"
+  },
+  "r1": {
+   "class_type": "ReadActivationProbe",
+   "group": "act",
+   "title": "bent ÷ unbent",
+   "inputs": {
+    "probe": [
+     "p1",
+     1
+    ],
+    "latent": [
+     "k1",
+     0
+    ],
+    "stat": "std",
+    "alert_ratio": 4.0,
+    "reference": [
+     "r0",
+     0
+    ]
+   }
+  },
+  "hm": {
+   "class_type": "PreviewImage",
+   "group": "act",
+   "title": "std ratio heat map (log2, sites × steps)",
+   "inputs": {
+    "images": [
+     "r1",
+     1
+    ]
+   }
+  },
+  "rp": {
+   "class_type": "PreviewAny",
+   "group": "act",
+   "title": "probe report (alerts, per-site ratios)",
+   "inputs": {
+    "source": [
+     "r1",
+     2
+    ]
+   }
+  }
+ }
+}

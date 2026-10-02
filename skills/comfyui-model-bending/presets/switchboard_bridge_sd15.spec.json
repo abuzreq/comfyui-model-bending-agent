@@ -1,0 +1,486 @@
+{
+ "meta": {
+  "preset": "comparison_switchboard_bridge",
+  "session": "demo",
+  "round": 1,
+  "arch": "sd15",
+  "candidates": {
+   "A": "rotate middle_block.1 90deg, steps 0-1",
+   "B": "scale input_blocks.4.0 x0.7, steps 0-1",
+   "C": "rotate output_blocks.3.1 45deg, steps 0-1"
+  }
+ },
+ "groups": [
+  {
+   "id": "base",
+   "title": "Base · shared loaders, prompt, seed",
+   "color": "#444444"
+  },
+  {
+   "id": "cand0",
+   "title": "0 · baseline (no bend)",
+   "color": "#555555"
+  },
+  {
+   "id": "cands",
+   "title": "Candidates A · B · C (same seed; bends limited to steps 0-1)",
+   "color": "#3f5159"
+  },
+  {
+   "id": "feedback",
+   "title": "✍ FEEDBACK · vote 👍/👎, keep/change chips, rating; Run or 'Send to agent'",
+   "color": "#8a6d1f"
+  },
+  {
+   "id": "pick",
+   "title": "▶ PICK · choose a radio button, then Run: renders the pick on 4 new seeds",
+   "color": "#a1309b"
+  },
+  {
+   "id": "reports",
+   "title": "Reports · what each ApplyBendsFromJSON actually resolved",
+   "color": "#335533"
+  }
+ ],
+ "nodes": {
+  "ckpt": {
+   "class_type": "CheckpointLoaderSimple",
+   "group": "base",
+   "inputs": {
+    "ckpt_name": "LCM_Dreamshaper_v7_4k.safetensors"
+   }
+  },
+  "msd": {
+   "class_type": "ModelSamplingDiscrete",
+   "group": "base",
+   "inputs": {
+    "model": [
+     "ckpt",
+     0
+    ],
+    "sampling": "lcm",
+    "zsnr": false
+   }
+  },
+  "clip": {
+   "class_type": "CLIPLoader",
+   "group": "base",
+   "inputs": {
+    "clip_name": "model_v1-4.safetensors",
+    "type": "stable_diffusion"
+   }
+  },
+  "vae": {
+   "class_type": "VAELoader",
+   "group": "base",
+   "inputs": {
+    "vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"
+   }
+  },
+  "pos": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Prompt",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "a lighthouse on a sea cliff at dusk, oil painting"
+   }
+  },
+  "neg": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Negative",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "lowres, blurry, jpeg artifacts, watermark, text"
+   }
+  },
+  "lat": {
+   "class_type": "EmptyLatentImage",
+   "group": "base",
+   "inputs": {
+    "width": 512,
+    "height": 512,
+    "batch_size": 1
+   }
+  },
+  "ks0": {
+   "class_type": "KSampler",
+   "group": "cand0",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 7,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   }
+  },
+  "dec0": {
+   "class_type": "VAEDecode",
+   "group": "cand0",
+   "inputs": {
+    "samples": [
+     "ks0",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "prev0": {
+   "class_type": "PreviewImage",
+   "group": "cand0",
+   "title": "0 · baseline",
+   "inputs": {
+    "images": [
+     "dec0",
+     0
+    ]
+   }
+  },
+  "bendA": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "cands",
+   "title": "A bends",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "bends_json": "{\"bends\":[{\"path\":\"middle_block.1\",\"module_type\":\"rotate\",\"module_args\":{\"angle_degrees\":90}}],\"steps_min\":0,\"steps_max\":1}"
+   }
+  },
+  "ksA": {
+   "class_type": "KSampler",
+   "group": "cands",
+   "inputs": {
+    "model": [
+     "bendA",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 7,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   }
+  },
+  "decA": {
+   "class_type": "VAEDecode",
+   "group": "cands",
+   "inputs": {
+    "samples": [
+     "ksA",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "bendB": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "cands",
+   "title": "B bends",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "bends_json": "{\"bends\":[{\"path\":\"input_blocks.4.0\",\"module_type\":\"scale\",\"module_args\":{\"scale_factor\":0.7}}],\"steps_min\":0,\"steps_max\":1}"
+   }
+  },
+  "ksB": {
+   "class_type": "KSampler",
+   "group": "cands",
+   "inputs": {
+    "model": [
+     "bendB",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 7,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   }
+  },
+  "decB": {
+   "class_type": "VAEDecode",
+   "group": "cands",
+   "inputs": {
+    "samples": [
+     "ksB",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "bendC": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "cands",
+   "title": "C bends",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "bends_json": "{\"bends\":[{\"path\":\"output_blocks.3.1\",\"module_type\":\"rotate\",\"module_args\":{\"angle_degrees\":45}}],\"steps_min\":0,\"steps_max\":1}"
+   }
+  },
+  "ksC": {
+   "class_type": "KSampler",
+   "group": "cands",
+   "inputs": {
+    "model": [
+     "bendC",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": 7,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   }
+  },
+  "decC": {
+   "class_type": "VAEDecode",
+   "group": "cands",
+   "inputs": {
+    "samples": [
+     "ksC",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "latP": {
+   "class_type": "EmptyLatentImage",
+   "group": "pick",
+   "title": "Pick · 4 seeds",
+   "inputs": {
+    "width": 512,
+    "height": 512,
+    "batch_size": 4
+   }
+  },
+  "ksP": {
+   "class_type": "KSampler",
+   "group": "pick",
+   "inputs": {
+    "model": [
+     "pick",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "latP",
+     0
+    ],
+    "seed": 1001,
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   }
+  },
+  "decP": {
+   "class_type": "VAEDecode",
+   "group": "pick",
+   "inputs": {
+    "samples": [
+     "ksP",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "saveP": {
+   "class_type": "SaveImage",
+   "group": "pick",
+   "title": "Picked bend × 4 seeds",
+   "inputs": {
+    "images": [
+     "decP",
+     0
+    ],
+    "filename_prefix": "agent_bending/pick"
+   }
+  },
+  "batch": {
+   "class_type": "BatchImagesNode",
+   "group": "feedback",
+   "inputs": {
+    "images": [
+     [
+      "decA",
+      0
+     ],
+     [
+      "decB",
+      0
+     ],
+     [
+      "decC",
+      0
+     ]
+    ]
+   }
+  },
+  "fb": {
+   "class_type": "AgentFeedback",
+   "group": "feedback",
+   "title": "✍ Vote, rate, tell the agent",
+   "size": [
+    520,
+    760
+   ],
+   "inputs": {
+    "images": [
+     "batch",
+     0
+    ],
+    "labels": "A · rotate mid 90°\nB · scale in.mid ×0.7\nC · rotate out.lo 45°",
+    "session_id": "demo",
+    "round": 1,
+    "rating": 0,
+    "push": 0.0,
+    "direction": "",
+    "votes": "{}",
+    "chips": "{}"
+   }
+  },
+  "pick": {
+   "class_type": "AgentVariantSwitch",
+   "group": "pick",
+   "title": "▶ Pick a candidate",
+   "inputs": {
+    "candidates": [
+     [
+      "bendA",
+      0
+     ],
+     [
+      "bendB",
+      0
+     ],
+     [
+      "bendC",
+      0
+     ]
+    ],
+    "selected": 1,
+    "labels": "A · rotate mid 90°\nB · scale in.mid ×0.7\nC · rotate out.lo 45°"
+   },
+   "size": [
+    360,
+    330
+   ]
+  },
+  "rep": {
+   "class_type": "AgentReportSink",
+   "group": "reports",
+   "title": "Bend reports → agent",
+   "inputs": {
+    "reports": [
+     [
+      "bendA",
+      1
+     ],
+     [
+      "bendB",
+      1
+     ],
+     [
+      "bendC",
+      1
+     ]
+    ],
+    "channel": "bends",
+    "session_id": "demo"
+   }
+  }
+ }
+}

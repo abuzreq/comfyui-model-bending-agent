@@ -1,0 +1,306 @@
+{
+ "meta": {
+  "preset": "slider_control_board",
+  "session": "demo",
+  "round": 1,
+  "arch": "sd15",
+  "sliders": {
+   "a": "rotate middle_block.1",
+   "b": "scale input_blocks.4.0",
+   "c": "multiply output_blocks.9.*",
+   "d": "t_end of the rotate/scale window"
+  }
+ },
+ "groups": [
+  {
+   "id": "controls",
+   "title": "🎚 CONTROL BOARD · move a-d, press Run (Ctrl+S hands the values to the agent)",
+   "color": "#a1309b"
+  },
+  {
+   "id": "base",
+   "title": "Base · loaders and prompt",
+   "color": "#444444"
+  },
+  {
+   "id": "bends",
+   "title": "Bends · one JSON template, clamped to the measured safe ranges",
+   "color": "#3f5159"
+  },
+  {
+   "id": "out",
+   "title": "Output · baseline vs bent (same seed)",
+   "color": "#335533"
+  }
+ ],
+ "nodes": {
+  "sA": {
+   "class_type": "PrimitiveFloat",
+   "group": "controls",
+   "title": "🎚 a · rotate ° at mid (safe 0-180, 0 = off)",
+   "inputs": {
+    "value": 90.0
+   }
+  },
+  "sB": {
+   "class_type": "PrimitiveFloat",
+   "group": "controls",
+   "title": "🎚 b · scale at in.mid (safe 0.7-1.3, 1 = off)",
+   "inputs": {
+    "value": 1.0
+   }
+  },
+  "sC": {
+   "class_type": "PrimitiveFloat",
+   "group": "controls",
+   "title": "🎚 c · gain at out.hi (safe 0.6-1.6, 1 = off)",
+   "inputs": {
+    "value": 1.0
+   }
+  },
+  "sD": {
+   "class_type": "PrimitiveFloat",
+   "group": "controls",
+   "title": "🎚 d · t where the a/b window ends (0.7 = structure only, 0 = every step)",
+   "inputs": {
+    "value": 0.7
+   }
+  },
+  "sSeed": {
+   "class_type": "PrimitiveInt",
+   "group": "controls",
+   "title": "🎚 seed",
+   "inputs": {
+    "value": 7
+   }
+  },
+  "ckpt": {
+   "class_type": "CheckpointLoaderSimple",
+   "group": "base",
+   "inputs": {
+    "ckpt_name": "LCM_Dreamshaper_v7_4k.safetensors"
+   }
+  },
+  "msd": {
+   "class_type": "ModelSamplingDiscrete",
+   "group": "base",
+   "inputs": {
+    "model": [
+     "ckpt",
+     0
+    ],
+    "sampling": "lcm",
+    "zsnr": false
+   }
+  },
+  "clip": {
+   "class_type": "CLIPLoader",
+   "group": "base",
+   "inputs": {
+    "clip_name": "model_v1-4.safetensors",
+    "type": "stable_diffusion"
+   }
+  },
+  "vae": {
+   "class_type": "VAELoader",
+   "group": "base",
+   "inputs": {
+    "vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"
+   }
+  },
+  "pos": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Prompt",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "a lighthouse on a sea cliff at dusk, oil painting"
+   }
+  },
+  "neg": {
+   "class_type": "CLIPTextEncode",
+   "group": "base",
+   "title": "Negative",
+   "inputs": {
+    "clip": [
+     "clip",
+     0
+    ],
+    "text": "lowres, blurry, jpeg artifacts, watermark, text"
+   }
+  },
+  "lat": {
+   "class_type": "EmptyLatentImage",
+   "group": "base",
+   "inputs": {
+    "width": 512,
+    "height": 512,
+    "batch_size": 1
+   }
+  },
+  "bend": {
+   "class_type": "ApplyBendsFromJSON",
+   "group": "bends",
+   "title": "Bends (template; a-d come from the sliders)",
+   "size": [
+    420,
+    520
+   ],
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "bends_json": "{\n \"bends\": [\n  {\n   \"label\": \"recompose\",\n   \"path\": \"middle_block.1\",\n   \"module_type\": \"rotate\",\n   \"module_args\": {\n    \"angle_degrees\": {{a}}\n   },\n   \"t\": [\n    1.0,\n    {{d}}\n   ]\n  },\n  {\n   \"label\": \"frame\",\n   \"path\": \"input_blocks.4.0\",\n   \"module_type\": \"scale\",\n   \"module_args\": {\n    \"scale_factor\": {{b}}\n   },\n   \"t\": [\n    1.0,\n    {{d}}\n   ]\n  },\n  {\n   \"label\": \"saturate\",\n   \"path\": \"output_blocks.9.*\",\n   \"module_type\": \"multiply\",\n   \"module_args\": {\n    \"scalar\": {{c}}\n   }\n  }\n ]\n}",
+    "strict": false,
+    "a": [
+     "sA",
+     0
+    ],
+    "b": [
+     "sB",
+     0
+    ],
+    "c": [
+     "sC",
+     0
+    ],
+    "d": [
+     "sD",
+     0
+    ],
+    "clamp": "safe",
+    "safe_ranges": "{\"multiply\":{\"scalar\":[0.5,2.0]},\"add_scalar\":{\"scalar\":[-1.0,1.0]},\"add_noise\":{\"noise_std\":[0.1,1.5]},\"rotate\":{\"angle_degrees\":[0.0,180.0]},\"scale\":{\"scale_factor\":[0.7,1.8]},\"paths\":{\"input_blocks.0\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.0.*\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.1\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.1.*\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.2\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.2.*\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.3\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.3.*\":{\"multiply\":{\"scalar\":[0.6,1.6]},\"add_scalar\":{\"scalar\":[-0.5,1.5]},\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"input_blocks.4\":{\"rotate\":{\"angle_degrees\":[5.0,45.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"input_blocks.4.*\":{\"rotate\":{\"angle_degrees\":[5.0,45.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"input_blocks.5\":{\"rotate\":{\"angle_degrees\":[5.0,45.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"input_blocks.5.*\":{\"rotate\":{\"angle_degrees\":[5.0,45.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"input_blocks.6\":{\"rotate\":{\"angle_degrees\":[5.0,45.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"input_blocks.6.*\":{\"rotate\":{\"angle_degrees\":[5.0,45.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"middle_block.0\":{\"add_noise\":{\"noise_std\":[0.3,3.0]}},\"middle_block.0.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]}},\"middle_block.1\":{\"add_noise\":{\"noise_std\":[0.3,3.0]}},\"middle_block.1.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]}},\"middle_block.2\":{\"add_noise\":{\"noise_std\":[0.3,3.0]}},\"middle_block.2.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]}},\"output_blocks.0\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.0.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.1\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.1.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.10\":{\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"output_blocks.10.*\":{\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"output_blocks.11\":{\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"output_blocks.11.*\":{\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"output_blocks.2\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.2.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.3\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.3.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.4\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.4.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.5\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.5.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"rotate\":{\"angle_degrees\":[10.0,90.0]}},\"output_blocks.6\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"output_blocks.6.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"output_blocks.7\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"output_blocks.7.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"output_blocks.8\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"output_blocks.8.*\":{\"add_noise\":{\"noise_std\":[0.3,3.0]},\"scale\":{\"scale_factor\":[0.7,1.3]}},\"output_blocks.9\":{\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}},\"output_blocks.9.*\":{\"rotate\":{\"angle_degrees\":[0.0,5.0]},\"scale\":{\"scale_factor\":[0.95,1.05]}}}}"
+   }
+  },
+  "rep": {
+   "class_type": "PreviewAny",
+   "group": "bends",
+   "title": "What was applied (report)",
+   "inputs": {
+    "source": [
+     "bend",
+     1
+    ]
+   }
+  },
+  "ks0": {
+   "class_type": "KSampler",
+   "inputs": {
+    "model": [
+     "msd",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": [
+     "sSeed",
+     0
+    ],
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   },
+   "group": "out",
+   "title": "baseline"
+  },
+  "dec0": {
+   "class_type": "VAEDecode",
+   "group": "out",
+   "inputs": {
+    "samples": [
+     "ks0",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "prev0": {
+   "class_type": "PreviewImage",
+   "group": "out",
+   "title": "baseline",
+   "inputs": {
+    "images": [
+     "dec0",
+     0
+    ]
+   }
+  },
+  "ks1": {
+   "class_type": "KSampler",
+   "inputs": {
+    "model": [
+     "bend",
+     0
+    ],
+    "positive": [
+     "pos",
+     0
+    ],
+    "negative": [
+     "neg",
+     0
+    ],
+    "latent_image": [
+     "lat",
+     0
+    ],
+    "seed": [
+     "sSeed",
+     0
+    ],
+    "steps": 6,
+    "cfg": 1.5,
+    "sampler_name": "lcm",
+    "scheduler": "sgm_uniform",
+    "denoise": 1.0
+   },
+   "group": "out",
+   "title": "bent"
+  },
+  "dec1": {
+   "class_type": "VAEDecode",
+   "group": "out",
+   "inputs": {
+    "samples": [
+     "ks1",
+     0
+    ],
+    "vae": [
+     "vae",
+     0
+    ]
+   }
+  },
+  "save1": {
+   "class_type": "SaveImage",
+   "group": "out",
+   "title": "bent",
+   "inputs": {
+    "images": [
+     "dec1",
+     0
+    ],
+    "filename_prefix": "agent_bending/slider"
+   }
+  }
+ }
+}

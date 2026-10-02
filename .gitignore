@@ -1,0 +1,20 @@
+dist/
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+.pytest_cache/
+.ruff_cache/
+bending_sessions/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# local agent settings, plans and notes stay out of the repo
+.claude/
+CLAUDE.local.md
+*.local.md
+.env
+.env.*

@@ -1,0 +1,86 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "One line of interpretations.jsonl: a caption, keywords, effect tags, concept tags, a note or a verdict, with its author (a human, or an AI with its exact model).",
+ "type": "object",
+ "required": [
+  "id",
+  "target",
+  "kind",
+  "value",
+  "author",
+  "created"
+ ],
+ "properties": {
+  "id": {
+   "type": "string"
+  },
+  "target": {
+   "type": "object",
+   "properties": {
+    "record": {
+     "type": "string"
+    },
+    "cell": {
+     "type": "string"
+    }
+   }
+  },
+  "kind": {
+   "enum": [
+    "caption",
+    "change",
+    "keywords",
+    "effect_tags",
+    "concepts",
+    "note",
+    "verdict"
+   ]
+  },
+  "value": {
+   "type": [
+    "string",
+    "array",
+    "object"
+   ]
+  },
+  "author": {
+   "type": "object",
+   "required": [
+    "type"
+   ],
+   "properties": {
+    "type": {
+     "enum": [
+      "human",
+      "ai"
+     ]
+    },
+    "name": {
+     "type": "string"
+    },
+    "role": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string",
+     "description": "exact model id when type is ai"
+    },
+    "prompt_version": {
+     "type": "string"
+    },
+    "tool": {
+     "type": "string"
+    }
+   },
+   "additionalProperties": false
+  },
+  "created": {
+   "type": "string"
+  },
+  "basis": {
+   "type": "string",
+   "description": "what the author looked at, e.g. 'baseline|output sheet'"
+  }
+ },
+ "additionalProperties": false
+}

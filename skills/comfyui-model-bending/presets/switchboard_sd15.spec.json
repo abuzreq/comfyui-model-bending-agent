@@ -1,0 +1,53 @@
+{
+  "meta": {"preset": "comparison_switchboard", "session": "demo", "round": 1, "arch": "sd15",
+           "candidates": {"A": "rotate middle_block.1 90deg, steps 0-1", "B": "scale input_blocks.4.0 x0.7, steps 0-1",
+                          "C": "rotate output_blocks.3.1 45deg, steps 0-1"}},
+  "groups": [
+    {"id": "base", "title": "Base · shared loaders, prompt, seed", "color": "#444444"},
+    {"id": "cand0", "title": "0 · baseline (no bend)", "color": "#555555"},
+    {"id": "candA", "title": "A · rotate mid (middle_block.1) 90° · steps 0-1", "color": "#3f5159"},
+    {"id": "candB", "title": "B · scale in.mid (input_blocks.4.0) ×0.7 · steps 0-1", "color": "#335533"},
+    {"id": "candC", "title": "C · rotate out.lo (output_blocks.3.1) 45° · steps 0-1", "color": "#553355"},
+    {"id": "pick", "title": "▶ PICK · flip the switches, then Queue", "color": "#a1309b"},
+    {"id": "feedback", "title": "✍ Feedback for the agent (Ctrl+S or Queue to send)", "color": "#8a6d1f"}
+  ],
+  "nodes": {
+    "ckpt":   {"class_type": "CheckpointLoaderSimple", "group": "base", "inputs": {"ckpt_name": "LCM_Dreamshaper_v7_4k.safetensors"}},
+    "msd":    {"class_type": "ModelSamplingDiscrete", "group": "base", "inputs": {"model": ["ckpt", 0], "sampling": "lcm", "zsnr": false}},
+    "clip":   {"class_type": "CLIPLoader", "group": "base", "inputs": {"clip_name": "model_v1-4.safetensors", "type": "stable_diffusion"}},
+    "vae":    {"class_type": "VAELoader", "group": "base", "inputs": {"vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"}},
+    "pos":    {"class_type": "CLIPTextEncode", "group": "base", "title": "Prompt", "inputs": {"clip": ["clip", 0], "text": "a lighthouse on a sea cliff at dusk, oil painting"}},
+    "neg":    {"class_type": "CLIPTextEncode", "group": "base", "title": "Negative", "inputs": {"clip": ["clip", 0], "text": "lowres, blurry, jpeg artifacts, watermark, text"}},
+    "lat":    {"class_type": "EmptyLatentImage", "group": "base", "inputs": {"width": 512, "height": 512, "batch_size": 1}},
+
+    "ks0":    {"class_type": "KSampler", "group": "cand0", "inputs": {"model": ["msd", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["lat", 0], "seed": 7, "steps": 6, "cfg": 1.5, "sampler_name": "lcm", "scheduler": "sgm_uniform", "denoise": 1.0}},
+    "dec0":   {"class_type": "VAEDecode", "group": "cand0", "inputs": {"samples": ["ks0", 0], "vae": ["vae", 0]}},
+    "prev0":  {"class_type": "PreviewImage", "group": "cand0", "title": "0 · baseline", "inputs": {"images": ["dec0", 0]}},
+
+    "bendA":  {"class_type": "ApplyBendsFromJSON", "group": "candA", "title": "A bends", "inputs": {"model": ["msd", 0], "bends_json": "{\"bends\":[{\"path\":\"middle_block.1\",\"module_type\":\"rotate\",\"module_args\":{\"angle_degrees\":90}}],\"steps_min\":0,\"steps_max\":1}"}},
+    "ksA":    {"class_type": "KSampler", "group": "candA", "inputs": {"model": ["bendA", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["lat", 0], "seed": 7, "steps": 6, "cfg": 1.5, "sampler_name": "lcm", "scheduler": "sgm_uniform", "denoise": 1.0}},
+    "decA":   {"class_type": "VAEDecode", "group": "candA", "inputs": {"samples": ["ksA", 0], "vae": ["vae", 0]}},
+    "prevA":  {"class_type": "PreviewImage", "group": "candA", "title": "A", "inputs": {"images": ["decA", 0]}},
+
+    "bendB":  {"class_type": "ApplyBendsFromJSON", "group": "candB", "title": "B bends", "inputs": {"model": ["msd", 0], "bends_json": "{\"bends\":[{\"path\":\"input_blocks.4.0\",\"module_type\":\"scale\",\"module_args\":{\"scale_factor\":0.7}}],\"steps_min\":0,\"steps_max\":1}"}},
+    "ksB":    {"class_type": "KSampler", "group": "candB", "inputs": {"model": ["bendB", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["lat", 0], "seed": 7, "steps": 6, "cfg": 1.5, "sampler_name": "lcm", "scheduler": "sgm_uniform", "denoise": 1.0}},
+    "decB":   {"class_type": "VAEDecode", "group": "candB", "inputs": {"samples": ["ksB", 0], "vae": ["vae", 0]}},
+    "prevB":  {"class_type": "PreviewImage", "group": "candB", "title": "B", "inputs": {"images": ["decB", 0]}},
+
+    "bendC":  {"class_type": "ApplyBendsFromJSON", "group": "candC", "title": "C bends", "inputs": {"model": ["msd", 0], "bends_json": "{\"bends\":[{\"path\":\"output_blocks.3.1\",\"module_type\":\"rotate\",\"module_args\":{\"angle_degrees\":45}}],\"steps_min\":0,\"steps_max\":1}"}},
+    "ksC":    {"class_type": "KSampler", "group": "candC", "inputs": {"model": ["bendC", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["lat", 0], "seed": 7, "steps": 6, "cfg": 1.5, "sampler_name": "lcm", "scheduler": "sgm_uniform", "denoise": 1.0}},
+    "decC":   {"class_type": "VAEDecode", "group": "candC", "inputs": {"samples": ["ksC", 0], "vae": ["vae", 0]}},
+    "prevC":  {"class_type": "PreviewImage", "group": "candC", "title": "C", "inputs": {"images": ["decC", 0]}},
+
+    "sw1":    {"class_type": "ComfySwitchNode", "group": "pick", "title": "Pick: B instead of A?", "inputs": {"switch": false, "on_false": ["bendA", 0], "on_true": ["bendB", 0]}},
+    "sw2":    {"class_type": "ComfySwitchNode", "group": "pick", "title": "Pick: C instead of the above?", "inputs": {"switch": false, "on_false": ["sw1", 0], "on_true": ["bendC", 0]}},
+    "latP":   {"class_type": "EmptyLatentImage", "group": "pick", "title": "Pick · 4 seeds", "inputs": {"width": 512, "height": 512, "batch_size": 4}},
+    "ksP":    {"class_type": "KSampler", "group": "pick", "inputs": {"model": ["sw2", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["latP", 0], "seed": 1001, "steps": 6, "cfg": 1.5, "sampler_name": "lcm", "scheduler": "sgm_uniform", "denoise": 1.0}},
+    "decP":   {"class_type": "VAEDecode", "group": "pick", "inputs": {"samples": ["ksP", 0], "vae": ["vae", 0]}},
+    "saveP":  {"class_type": "SaveImage", "group": "pick", "title": "Picked bend × 4 seeds", "inputs": {"images": ["decP", 0], "filename_prefix": "agent_bending/pick"}},
+
+    "fbNote": {"class_type": "MarkdownNote", "group": "feedback", "title": "✍ Feedback", "inputs": {"text": "Replace this line with notes for the agent, e.g. \"B's framing but less blur\", \"keep pose, change style\", \"go further on A\".\n"}},
+    "rating": {"class_type": "PrimitiveInt", "group": "feedback", "title": "★ How close is the pick to what you want? (0-5)", "inputs": {"value": 0}},
+    "push":   {"class_type": "PrimitiveFloat", "group": "feedback", "title": "⇆ Next round: -1 = pull back, 0 = refine, +1 = push further", "inputs": {"value": 0.0}}
+  }
+}

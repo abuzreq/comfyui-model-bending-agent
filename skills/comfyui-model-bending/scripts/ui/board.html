@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pick a version</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg2: var(--color-background-secondary, #f4f4f5);
+    --fg: var(--color-text-primary, #18181b);
+    --muted: var(--color-text-secondary, #6b6b73);
+    --line: var(--color-border-primary, #d9d9de);
+    --accent: var(--color-text-info, #3b5bdb);
+    --ok: var(--color-text-success, #2b8a3e);
+    --radius: var(--border-radius-md, 10px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: var(--color-background-primary, #1c1c1f); --bg2: var(--color-background-secondary, #26262a);
+      --fg: var(--color-text-primary, #ececef); --muted: var(--color-text-secondary, #a1a1aa);
+      --line: var(--color-border-primary, #3a3a40); --accent: var(--color-text-info, #8ea6ff);
+      --ok: var(--color-text-success, #69db7c);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px; background: var(--bg); color: var(--fg);
+         font: 15px/1.45 var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif); }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  .question { margin: 0 0 12px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .card { background: var(--bg2); border: 2px solid transparent; border-radius: var(--radius); padding: 8px;
+          display: flex; flex-direction: column; gap: 6px; }
+  .card.selectable { cursor: pointer; }
+  .card.selectable:hover { border-color: var(--line); }
+  .card.selected { border-color: var(--accent); }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .frame { position: relative; aspect-ratio: 1; border-radius: calc(var(--radius) - 4px); overflow: hidden;
+           background: var(--line); }
+  .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .frame .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted);
+                    font-size: 13px; }
+  .zoom { position: absolute; right: 6px; bottom: 6px; border: 0; border-radius: 6px; padding: 3px 7px;
+          background: rgba(0,0,0,.55); color: #fff; cursor: zoom-in; font-size: 13px; }
+  .head { display: flex; align-items: center; gap: 6px; }
+  .label { font-weight: 600; }
+  .badge { font-size: 12px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); }
+  .tick { margin-left: auto; font-size: 13px; color: var(--accent); visibility: hidden; }
+  .card.selected .tick { visibility: visible; }
+  .caption { margin: 0; font-size: 14px; }
+  .details { margin: 0; font: 12px/1.35 ui-monospace, Consolas, monospace; color: var(--muted); display: none; }
+  body.show-details .details { display: block; }
+  .votes { display: flex; gap: 6px; }
+  button.pill, .chip { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px;
+                        padding: 4px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  button.pill[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .section { margin-top: 14px; }
+  .section > .title { font-weight: 600; margin-bottom: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip[data-state="keep"] { border-color: var(--ok); color: var(--ok); }
+  .chip[data-state="change"] { border-color: var(--accent); color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  textarea { width: 100%; min-height: 62px; resize: vertical; padding: 8px; border-radius: var(--radius);
+             border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+  button.primary { border: 0; border-radius: var(--radius); padding: 9px 18px; font: inherit; font-weight: 600;
+                   background: var(--accent); color: var(--bg); cursor: pointer; }
+  button.primary:disabled { opacity: .45; cursor: default; }
+  button.link { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+                text-decoration: underline; padding: 0; }
+  .status { font-size: 13px; color: var(--muted); }
+  .status.ok { color: var(--ok); }
+  .status.err { color: #d9480f; }
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; align-items: center;
+              justify-content: center; z-index: 10; cursor: zoom-out; padding: 12px; }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .lightbox .cap { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; color: #fff; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1 id="title">Loading the versions…</h1>
+<p class="question" id="question"></p>
+<div class="grid" id="grid"></div>
+<div id="extras"></div>
+<div class="actions">
+  <button class="primary" id="send" disabled>Send to Claude</button>
+  <button class="pill" id="none" aria-pressed="false">None of these</button>
+  <span class="status" id="status" role="status" aria-live="polite"></span>
+  <button class="link" id="toggle-details" hidden>Show the technical details</button>
+</div>
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Enlarged picture"><img alt=""><div class="cap"></div></div>
+
+<script>/*__EXT_APPS_BUNDLE__*/</script>
+<script>
+(() => {
+  const { App, applyDocumentTheme, applyHostStyleVariables, applyHostFonts } = globalThis.ExtApps;
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") n.className = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const kid of kids.flat()) if (kid != null) n.append(kid);
+    return n;
+  };
+
+  const app = new App({ name: "comfyui-bending-board", version: "1.0.0" }, {}, { autoResize: true });
+  const state = { board: null, picks: new Set(), none: false, votes: {}, chips: {}, push: null, sent: false, sources: [] };
+
+  function theme(ctx) {
+    if (!ctx) return;
+    if (ctx.theme) { applyDocumentTheme(ctx.theme); document.documentElement.dataset.theme = ctx.theme; }
+    if (ctx.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
+    if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
+  }
+  app.onhostcontextchanged = (ctx) => theme(ctx);
+
+  app.ontoolresult = (result) => {
+    const board = result?.structuredContent?.board;
+    if (result?.isError || !board) {
+      $("title").textContent = "This board could not be shown";
+      $("question").textContent = (result?.content || []).map((c) => c.text || "").join(" ") ||
+        "Ask Claude to show the versions again.";
+      return;
+    }
+    render(board);
+  };
+
+  // ------------------------------------------------------------------ rendering
+  function render(board) {
+    state.board = board;
+    $("title").textContent = board.title || "Which version do you like?";
+    $("question").textContent = board.question || "Pick one or more versions, then send your choice to Claude.";
+    const grid = $("grid");
+    grid.replaceChildren();
+    state.sources = [];
+    if (board.has_original) grid.append(card({ label: "Your original", caption: "" }, false));
+    for (const c of board.candidates) grid.append(card(c, true));
+    if (board.candidates.some((c) => c.details)) $("toggle-details").hidden = false;
+    renderExtras(board);
+    loadImages();
+    update();
+  }
+
+  function card(c, selectable) {
+    const index = state.sources.length;
+    const img = el("img", { alt: selectable ? `Version ${c.label}` : "Your original picture" });
+    const frame = el("div", { class: "frame" }, el("div", { class: "loading" }, "Loading…"), img,
+      el("button", { class: "zoom", type: "button", title: "Enlarge", "aria-label": "Enlarge",
+        onclick: (e) => { e.stopPropagation(); enlarge(index, selectable ? `Version ${c.label}` : "Your original"); } }, "⤢"));
+    state.sources.push({ img, frame });
+    const head = el("div", { class: "head" }, el("span", { class: "label" }, selectable ? c.label : c.label),
+      c.recommended ? el("span", { class: "badge", title: "The one Claude would choose" }, "Claude's pick") : null,
+      selectable ? el("span", { class: "tick" }, "✓ chosen") : null);
+    const kids = [frame, head];
+    if (c.caption) kids.push(el("p", { class: "caption" }, c.caption));
+    if (c.details) kids.push(el("p", { class: "details" }, c.details));
+    if (selectable && state.board.ask.includes("votes")) kids.push(votes(c.label));
+    if (!selectable) return el("div", { class: "card" }, ...kids);
+    const node = el("div", { class: "card selectable", role: "button", tabindex: "0", "aria-pressed": "false",
+      onclick: () => toggle(c.label, node), onkeydown: (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(c.label, node); } } }, ...kids);
+    node.dataset.label = c.label;
+    return node;
+  }
+
+  function votes(label) {
+    const mk = (v, text, aria) => el("button", { class: "pill", type: "button", "aria-pressed": "false", "aria-label": aria,
+      onclick: (e) => {
+        e.stopPropagation();
+        state.votes[label] = state.votes[label] === v ? undefined : v;
+        for (const b of e.currentTarget.parentNode.children) b.setAttribute("aria-pressed", String(state.votes[label] === b.dataset.v));
+        update();
+      } }, text);
+    const up = mk("up", "👍", `I like ${label}`), down = mk("down", "👎", `I don't like ${label}`);
+    up.dataset.v = "up"; down.dataset.v = "down";
+    return el("div", { class: "votes" }, up, down);
+  }
+
+  function renderExtras(board) {
+    const box = $("extras");
+    box.replaceChildren();
+    if (board.ask.includes("keep_change")) {
+      const chips = el("div", { class: "chips" }, board.chips.map((name) => {
+        const chip = el("button", { class: "chip", type: "button", "data-state": "",
+          onclick: () => {
+            const next = { "": "keep", keep: "change", change: "" }[chip.dataset.state];
+            chip.dataset.state = next;
+            state.chips[name] = next || undefined;
+            chip.textContent = next ? `${next === "keep" ? "Keep" : "Change"} ${name}` : name;
+            update();
+          } }, name);
+        return chip;
+      }));
+      box.append(el("div", { class: "section" }, el("div", { class: "title" }, "What should stay, and what should change?"),
+        chips, el("div", { class: "hint" }, "Tap once for keep, twice for change, three times to clear.")));
+    }
+    if (board.ask.includes("strength")) {
+      const opts = [[-1, "Pull it back"], [0, "Keep it about the same"], [1, "Push it further"]];
+      const row = el("div", { class: "chips" }, opts.map(([v, text]) => {
+        const b = el("button", { class: "pill", type: "button", "aria-pressed": "false",
+          onclick: () => {
+            state.push = state.push === v ? null : v;
+            for (const x of row.children) x.setAttribute("aria-pressed", String(Number(x.dataset.v) === state.push));
+            update();
+          } }, text);
+        b.dataset.v = String(v);
+        return b;
+      }));
+      box.append(el("div", { class: "section" }, el("div", { class: "title" }, "How strong should the next try be?"), row));
+    }
+    if (board.ask.includes("direction")) {
+      const ta = el("textarea", { id: "direction", placeholder: "For example: B, but with a calmer sea", oninput: update });
+      box.append(el("div", { class: "section" }, el("div", { class: "title" }, "Anything to tell Claude? (optional)"), ta));
+    }
+  }
+
+  async function loadImages() {
+    const id = state.board.board_id;
+    for (let i = 0; i < state.sources.length; i++) {
+      const { img, frame } = state.sources[i];
+      try {
+        const r = await app.callServerTool({ name: "board_image", arguments: { board_id: id, index: i } });
+        const part = (r.content || []).find((c) => c.type === "image");
+        if (r.isError || !part) throw new Error((r.content || []).map((c) => c.text || "").join(" ") || "no picture");
+        img.src = `data:${part.mimeType || "image/jpeg"};base64,${part.data}`;
+        frame.querySelector(".loading")?.remove();
+      } catch (e) {
+        const l = frame.querySelector(".loading");
+        if (l) l.textContent = "This picture could not be loaded";
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------ choosing
+  function toggle(label, node) {
+    if (state.picks.has(label)) state.picks.delete(label); else state.picks.add(label);
+    node.classList.toggle("selected", state.picks.has(label));
+    node.setAttribute("aria-pressed", String(state.picks.has(label)));
+    if (state.picks.size) setNone(false);
+    update();
+  }
+
+  function setNone(on) {
+    state.none = on;
+    $("none").setAttribute("aria-pressed", String(on));
+    if (on) {
+      state.picks.clear();
+      for (const n of document.querySelectorAll(".card.selected")) { n.classList.remove("selected"); n.setAttribute("aria-pressed", "false"); }
+    }
+  }
+  $("none").addEventListener("click", () => { setNone(!state.none); update(); });
+  $("toggle-details").addEventListener("click", (e) => {
+    const on = document.body.classList.toggle("show-details");
+    e.currentTarget.textContent = on ? "Hide the technical details" : "Show the technical details";
+  });
+
+  const direction = () => ($("direction")?.value || "").trim();
+  function update() {
+    const something = state.picks.size || state.none || direction();
+    $("send").disabled = !state.board || !something;
+    if (state.sent) { $("status").textContent = "Changed your mind? Send again and Claude will use the new answer."; $("status").className = "status"; }
+  }
+
+  const list = (xs) => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+  function feedback() {
+    const keep = Object.keys(state.chips).filter((k) => state.chips[k] === "keep");
+    const change = Object.keys(state.chips).filter((k) => state.chips[k] === "change");
+    const picks = state.board.candidates.map((c) => c.label).filter((l) => state.picks.has(l));  // board order
+    return { picks, none: state.none, votes: Object.fromEntries(Object.entries(state.votes).filter(([, v]) => v)),
+      keep, change, push: state.push ?? 0, rating: 0, direction: direction() };
+  }
+  function sentence(fb) {
+    const parts = [];
+    if (fb.picks.length) parts.push(fb.picks.length === 1 ? `I pick ${fb.picks[0]}.` : `I like ${list(fb.picks)}.`);
+    else if (fb.none) parts.push("None of these.");
+    const up = Object.keys(fb.votes).filter((k) => fb.votes[k] === "up"), down = Object.keys(fb.votes).filter((k) => fb.votes[k] === "down");
+    if (up.length) parts.push(`👍 ${list(up)}.`);
+    if (down.length) parts.push(`👎 ${list(down)}.`);
+    if (fb.keep.length) parts.push(`Keep the ${list(fb.keep)}.`);
+    if (fb.change.length) parts.push(`Change the ${list(fb.change)}.`);
+    if (state.push !== null) parts.push({ "-1": "Pull it back.", "0": "Keep the strength about the same.", "1": "Push it further." }[String(state.push)]);
+    if (fb.direction) parts.push(`"${fb.direction}"`);
+    return `${parts.join(" ")} (my answer on board ${state.board.board_id})`;
+  }
+
+  $("send").addEventListener("click", async () => {
+    const fb = feedback();
+    $("send").disabled = true;
+    $("status").className = "status";
+    $("status").textContent = "Sending…";
+    try {
+      const r = await app.callServerTool({ name: "submit_board", arguments: { board_id: state.board.board_id, feedback: fb } });
+      if (r.isError) throw new Error((r.content || []).map((c) => c.text || "").join(" "));
+      const m = await app.sendMessage({ role: "user", content: [{ type: "text", text: sentence(fb) }] });
+      state.sent = true;
+      $("status").className = "status ok";
+      $("status").textContent = m?.isError ? "Saved. Tell Claude in the chat that you've chosen." : "Sent ✓";
+    } catch (e) {
+      $("status").className = "status err";
+      $("status").textContent = "That didn't go through. Try again, or tell Claude your choice in the chat.";
+    }
+    $("send").disabled = false;
+  });
+
+  // ------------------------------------------------------------------ enlarge
+  async function enlarge(index, caption) {
+    const src = state.sources[index]?.img.src;
+    if (!src) return;
+    const box = $("lightbox");
+    box.querySelector("img").src = src;
+    box.querySelector(".cap").textContent = caption;
+    box.classList.add("open");
+    const modes = app.getHostContext()?.availableDisplayModes || [];
+    if (modes.includes("fullscreen")) { try { await app.requestDisplayMode({ mode: "fullscreen" }); } catch {} }
+  }
+  async function closeLightbox() {
+    $("lightbox").classList.remove("open");
+    if (app.getHostContext()?.displayMode === "fullscreen") { try { await app.requestDisplayMode({ mode: "inline" }); } catch {} }
+  }
+  $("lightbox").addEventListener("click", closeLightbox);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
+
+  app.connect().then(() => theme(app.getHostContext())).catch(() => {
+    $("title").textContent = "This board needs the Claude app";
+    $("question").textContent = "Tell Claude your choice in the chat instead.";
+  });
+})();
+</script>
+</body>
+</html>

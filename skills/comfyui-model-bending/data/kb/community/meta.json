@@ -1,0 +1,14 @@
+{
+ "built": "2026-10-01T23:11:56Z",
+ "schema_version": "1.0",
+ "records": 8660,
+ "cells": 932,
+ "findings": 10,
+ "families": {
+  "sd1": 8660
+ },
+ "sources": {
+  "author_experiment": 2940,
+  "paper": 5720
+ }
+}
