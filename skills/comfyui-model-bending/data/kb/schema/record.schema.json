@@ -41,6 +41,22 @@
   "contributor": {
    "type": "string"
   },
+  "contribution": {
+   "type": "object",
+   "description": "who shared a contributed record (sources artist and session), how, and under which terms",
+   "required": ["by", "via", "agreed"],
+   "properties": {
+    "by": {"type": "object", "required": ["type"], "properties": {
+      "type": {"enum": ["human"]},
+      "name": {"type": ["string", "null"], "description": "shown in the navigator; null shows \"not named\""}},
+     "additionalProperties": false},
+    "via": {"enum": ["hand", "agent"]},
+    "agent": {"type": "object", "properties": {"model": {"type": "string"}, "tool": {"type": "string"}}},
+    "agreed": {"type": "object", "required": ["license", "at"], "properties": {
+      "license": {"type": "string"}, "at": {"type": "string"}}}
+   },
+   "additionalProperties": false
+  },
   "consent": {
    "type": "object",
    "required": [
@@ -76,6 +92,18 @@
     },
     "checkpoint_sha256": {
      "type": "string"
+    },
+    "clip": {
+     "type": "string",
+     "description": "text encoder file, when not baked into the checkpoint"
+    },
+    "vae": {
+     "type": "string",
+     "description": "VAE file, when not baked into the checkpoint"
+    },
+    "model_sampling": {
+     "type": "string",
+     "description": "ModelSamplingDiscrete mode, e.g. lcm"
     }
    }
   },
@@ -252,11 +280,19 @@
     },
     "baseline_id": {
      "type": "string"
+    },
+    "workflow": {
+     "type": "string",
+     "description": "a ComfyUI API-format workflow that renders this record (also embedded in the image)"
     }
    }
   },
   "provenance": {
    "type": "object"
+  },
+  "id_scheme": {
+   "type": "integer",
+   "description": "which frozen set of fields the id hashes (kb.ID_SCHEME); a published id never changes"
   }
  }
 }

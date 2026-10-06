@@ -50,8 +50,54 @@ METRICS = {
     "mae_vs_baseline": {"method": "mean absolute RGB difference vs the baseline, 0-255"},
     "std": {"method": "luminance standard deviation at 256 px, 0-255"},
     "hf_ratio": {"method": "share of luminance FFT power above radius 0.25 at 256 px"},
-    "degenerate": {"method": "pixel guard: noise, blob or flat output"},
+    "prompt_retention": {"method": "CLIP image-prompt cosine of the output divided by the baseline's (1 = shows the "
+                                   "prompt as well as the unbent image; low = the subject is lost)",
+                         "model": "openai/clip-vit-base-patch32"},
+    "clip_degenerate": {"method": "CLIP zero-shot probability mass on degenerate-image prompts (noise, static, blank, "
+                                  "blobs...) vs content prompts (painting, photograph, abstract artwork...)",
+                        "model": "openai/clip-vit-base-patch32"},
 }
+
+# "Broken" is strict: it should almost never mark an image an artist would keep. Thresholds were set from the KB
+# owner's labels on 59 renders around the old cut-offs (2026-10-04): at these values none of the images they called
+# fine or borderline is flagged, at the cost of missing most they called broken (4 of 11 caught). Losing the subject
+# (low prompt_retention), flat textures and smooth blob fields were often judged fine, so they are recorded
+# (prompt_retention, pixel_flags) but do not make a render broken on their own. Only static-like noise and
+# all-black/all-white frames do.
+HARD_PIXEL_FLAGS = ("noise", "extreme")
+DEGENERATE_MASS_MIN, DEGENERATE_RETENTION_MAX = 0.90, 0.85
+DEGENERATE_MASS_NO_PROMPT = 0.95
+METRICS["pixel_flags"] = {"method": "pixel guard observations at 256 px: noise (high-frequency power), blob (smooth "
+                                    "high-contrast field), flat (low contrast/entropy), clipped, extreme (near-black or "
+                                    "near-white mean); recorded, only noise and extreme make a render broken"}
+METRICS["degenerate"] = {"method": f"broken output: clip_degenerate >= {DEGENERATE_MASS_MIN} with prompt_retention < "
+                                   f"{DEGENERATE_RETENTION_MAX} (>= {DEGENERATE_MASS_NO_PROMPT} when no prompt is "
+                                   f"shared), or pixel_flags noise / extreme; calibrated on human labels"}
+
+
+# Softer signals, recorded per cell to describe what a bend tends to do, never to exclude renders: the subject fading
+# (prompt_retention below this) and a noise/blob look (clip_degenerate at or above this).
+RISK_RETENTION, RISK_DEGENERATE = 0.75, 0.6
+
+
+def at_risk(m: dict) -> bool:
+    """A render that broke, or whose subject faded, or that CLIP sees as noise/blobs (measurement values)."""
+    r, g = m.get("prompt_retention"), m.get("clip_degenerate")
+    return bool(m.get("degenerate")) or (r is not None and r < RISK_RETENTION) or (g is not None and g >= RISK_DEGENERATE)
+
+
+def degenerate_reasons(pixel_flags: list[str], prompt_retention: float | None = None,
+                       clip_degenerate: float | None = None) -> list[str]:
+    """Why a render counts as broken (empty = it does not). See METRICS["degenerate"]."""
+    reasons = [r for r in pixel_flags if r in HARD_PIXEL_FLAGS]
+    if clip_degenerate is not None:
+        if prompt_retention is not None:
+            hit = clip_degenerate >= DEGENERATE_MASS_MIN and prompt_retention < DEGENERATE_RETENTION_MAX
+        else:
+            hit = clip_degenerate >= DEGENERATE_MASS_NO_PROMPT
+        if hit:
+            reasons.append("clip_degenerate")
+    return reasons
 
 
 # --------------------------------------------------------------------------- ids and privacy
@@ -296,9 +342,9 @@ def make_record(*, source: str, model: dict, setup: dict, bends: list[dict], out
         if not consent["input_image"]:
             s.pop("input_image")
     nb = [norm_bend(b, model["family"], s.get("steps")) for b in bends]
-    rid = digest({"model": {k: model.get(k) for k in ("family", "arch", "checkpoint")}, "setup": s,
-                  "bends": [{k: b.get(k) for k in ("path", "op", "args", "start", "end", "blend")} for b in nb]})
-    rec = {"id": rid, "schema_version": SCHEMA_VERSION, "source": source, "created": created or now(),
+    rid = record_id(model, s, nb)
+    rec = {"id": rid, "id_scheme": ID_SCHEME, "schema_version": SCHEMA_VERSION, "source": source,
+           "created": created or now(),
            "license": license, "consent": consent, "model": model, "setup": s, "bends": nb,
            "outputs": outputs or {"image": "output.webp"}, "provenance": provenance or {}}
     if contributor:
@@ -306,11 +352,45 @@ def make_record(*, source: str, model: dict, setup: dict, bends: list[dict], out
     return rec
 
 
+# Record ids are frozen: they hash exactly these fields and nothing else, so a published id never changes when the
+# dataset grows or records gain new fields (loaders, notes, provenance...). A new scheme would need a new number and
+# an alias map from the old ids. Scheme 1 (2026-10-05) added the negative prompt to scheme 0's fields and normalises
+# numbers (7 and 7.0 are the same fact); an absent negative means "not recorded", "" means it was empty.
+ID_SCHEME = 1
+ID_MODEL_KEYS = ("family", "arch", "checkpoint")
+ID_SETUP_KEYS = ("route", "seed", "sampler", "scheduler", "steps", "cfg", "width", "height", "denoise", "end_at_frac",
+                 "prompt", "prompt_key", "negative", "input_key")
+ID_BEND_KEYS = ("path", "op", "args", "start", "end", "blend")
+
+
+def _id_setup(setup: dict) -> dict:
+    return {k: setup[k] for k in ID_SETUP_KEYS if k in setup}
+
+
+def _id_value(v):
+    """Numbers as the same fact, however they were written: 7, 7.0 and 7.000000001 hash alike."""
+    if isinstance(v, bool) or v is None or isinstance(v, str):
+        return v
+    if isinstance(v, (int, float)):
+        f = round(float(v), 6)
+        return int(f) if f.is_integer() else f
+    if isinstance(v, dict):
+        return {k: _id_value(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_id_value(x) for x in v]
+    return v
+
+
+def record_id(model: dict, setup: dict, bends: list[dict]) -> str:
+    """The frozen id of a record (ID_SCHEME): its model, setup and bends, limited to the ID_* fields, with numbers
+    normalised (_id_value)."""
+    return digest(_id_value({"model": {k: model.get(k) for k in ID_MODEL_KEYS}, "setup": _id_setup(setup),
+                             "bends": [{k: b.get(k) for k in ID_BEND_KEYS} for b in bends]}))
+
+
 def baseline_id(rec: dict) -> str:
     """Id of the unbent render that shares this record's model and setup."""
-    m = rec["model"]
-    return digest({"model": {k: m.get(k) for k in ("family", "arch", "checkpoint")}, "setup": rec["setup"],
-                   "bends": []})
+    return record_id(rec["model"], rec["setup"], [])
 
 
 def measure(name: str, value, **override) -> dict:
@@ -546,7 +626,9 @@ def summarize_record(d: Path, rec: dict) -> dict:
     cf = cell_fields(rec)
     return {**rec, "dir": str(d.relative_to(d.parents[3])).replace("\\", "/"),
             "cell": cell_key(cf) if cf else None,
-            "measurements": {k: v.get("value") for k, v in m.items()},
+            "measurements": {**{k: v.get("value") for k, v in m.items()},
+                             **({"degenerate_reasons": m["degenerate"].get("reasons", [])}
+                                if (m.get("degenerate") or {}).get("value") else {})},
             "interpretations": latest, "n_interpretations": len(ints)}
 
 
@@ -568,14 +650,17 @@ def aggregate_cells(summaries: list[dict], findings: list[dict] = (), cell_inter
             for k, v in (r["bends"][0].get("args") or {}).items():
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
                     args[k].append(float(v))
+        # Broken renders say what can go wrong, not what the bend does: statistics and effect tags use intact ones.
+        degen = [r for r in rs if (r.get("measurements") or {}).get("degenerate")]
+        intact = [r for r in rs if not (r.get("measurements") or {}).get("degenerate")]
         meas: dict[str, list[float]] = defaultdict(list)
-        for r in rs:
+        for r in intact:
             for k, v in (r.get("measurements") or {}).items():
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
                     meas[k].append(float(v))
         tags, tag_authors, keywords = Counter(), defaultdict(set), Counter()
         n_described = 0
-        for r in rs:
+        for r in intact:
             it = r.get("interpretations") or {}
             et = it.get("effect_tags")
             if et:
@@ -586,19 +671,43 @@ def aggregate_cells(summaries: list[dict], findings: list[dict] = (), cell_inter
             kw = it.get("keywords")
             if kw:
                 keywords.update(kw["value"])
-        degen = [r for r in rs if (r.get("measurements") or {}).get("degenerate")]
+        reasons = Counter(x for r in degen for x in (r.get("measurements") or {}).get("degenerate_reasons") or [])
+        measured = [r["measurements"] for r in rs if "prompt_retention" in (r.get("measurements") or {})
+                    or "clip_degenerate" in (r.get("measurements") or {})]
+        signals = {}
+        if measured:
+            ret = [m["prompt_retention"] for m in measured if m.get("prompt_retention") is not None]
+            deg = [m["clip_degenerate"] for m in measured if m.get("clip_degenerate") is not None]
+            signals = {"n": len(measured),
+                       "subject_fades": round(sum(x < RISK_RETENTION for x in ret) / len(ret), 3) if ret else None,
+                       "noise_or_blob_look": round(sum(x >= RISK_DEGENERATE for x in deg) / len(deg), 3) if deg else None,
+                       "prompt_retention_mean": round(sum(ret) / len(ret), 3) if ret else None}
+        risky = [r for r in rs if at_risk(r.get("measurements") or {})]
+        failure_notes = [{"record": r["id"], "broken": bool((r.get("measurements") or {}).get("degenerate")),
+                          "value": r["interpretations"]["change"]["value"],
+                          "author": r["interpretations"]["change"]["author"]}
+                         for r in sorted(risky, key=lambda r: not (r.get("measurements") or {}).get("degenerate"))
+                         if (r.get("interpretations") or {}).get("change")][:3]
         pins = sum(1 for r in rs if (r.get("interpretations") or {}).get("verdict", {}).get("value") == "pinned")
         vetoes = sum(1 for r in rs if (r.get("interpretations") or {}).get("verdict", {}).get("value") == "vetoed")
         covering = [f["id"] for f in findings if f.get("level", "cell") == "cell" and finding_covers(f, fields)]
-        examples = sorted(rs, key=lambda r: (-(r.get("n_interpretations") or 0), r["id"]))[:6]
+        examples = sorted(intact or rs, key=lambda r: (-(r.get("n_interpretations") or 0), r["id"]))[:6]
+        broken_examples = sorted(degen, key=lambda r: (-(r.get("n_interpretations") or 0), r["id"]))[:3]
         cell = {"key": key, **fields, "n": len(rs), "seeds": len(seeds), "prompts": len(prompts),
                 "checkpoints": sorted({r["model"].get("checkpoint") or "?" for r in rs}),
                 "archs": sorted({r["model"].get("arch") or "?" for r in rs}),
                 "sources": dict(Counter(r["source"] for r in rs)),
                 "args": {k: [min(v), max(v)] for k, v in args.items()},
+                "n_intact": len(intact),
+                # over intact renders only
                 "measurements": {k: {"mean": round(sum(v) / len(v), 4), "sd": round(_sd(v), 4), "n": len(v)}
                                  for k, v in meas.items()},
+                # over all renders: how often it broke and why, softer warning signs, and what failure looks like
                 "degenerate_rate": round(len(degen) / len(rs), 3),
+                "broken_reasons": dict(reasons),
+                "signals": signals,
+                "failure_notes": failure_notes,
+                "broken_examples": {r["id"]: r["dir"] for r in broken_examples},
                 # share = among the records someone described, not all records: cells are often described by
                 # one representative record
                 "n_described": n_described,
@@ -638,6 +747,62 @@ def recipe_template(rec: dict) -> dict:
     return out
 
 
+PROMPT_PLACEHOLDER = "<your prompt: this record's prompt was not shared>"
+
+
+def comfy_workflow(rec: dict) -> dict | None:
+    """A ComfyUI API-format workflow that renders this record from its facts: the checkpoint (plus separate text
+    encoder / VAE / sampling mode when the record names them), its sampler, steps, cfg, seed, size, prompt and
+    negative, and its bends in one Apply Bends from JSON node with clamping off, so the amounts are used exactly.
+    Prompts that were not shared become a placeholder. None for routes other than txt2img."""
+    s, m = rec["setup"], rec["model"]
+    if s.get("route", "txt2img") != "txt2img" or not m.get("checkpoint"):
+        return None
+    bends = []
+    for b in rec["bends"]:
+        bends.append({"path": b["path"], "module_type": b["op"], "module_args": b.get("args") or {},
+                      **({"blend": b["blend"]} if b.get("blend") is not None else {})})
+    doc: dict = {"bends": bends}
+    lo = next((b.get("steps_min") for b in rec["bends"] if b.get("steps_min") is not None), None)
+    hi = next((b.get("steps_max") for b in rec["bends"] if b.get("steps_max") is not None), None)
+    if lo is not None or hi is not None:  # executed-step window, as the producer sent it
+        doc.update({k: v for k, v in (("steps_min", lo), ("steps_max", hi)) if v is not None})
+    elif any(b.get("window", "all") != "all" for b in rec["bends"]):
+        for jb, b in zip(bends, rec["bends"]):
+            jb["t"] = [round(1 - b.get("start", 0.0), 3), round(1 - b.get("end", 1.0), 3)]
+    clip, vae = ["1", 1], ["1", 2]
+    wf = {"1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": m["checkpoint"]}}}
+    if m.get("clip"):
+        wf["2"] = {"class_type": "CLIPLoader", "inputs": {"clip_name": m["clip"], "type": "stable_diffusion"}}
+        clip = ["2", 0]
+    if m.get("vae"):
+        wf["3"] = {"class_type": "VAELoader", "inputs": {"vae_name": m["vae"]}}
+        vae = ["3", 0]
+    model = ["1", 0]
+    if m.get("model_sampling"):
+        wf["4"] = {"class_type": "ModelSamplingDiscrete", "inputs": {"model": model, "sampling": m["model_sampling"],
+                                                                     "zsnr": False}}
+        model = ["4", 0]
+    if bends:
+        wf["5"] = {"class_type": "ApplyBendsFromJSON", "_meta": {"title": f"Bend (knowledge base record {rec['id']})"},
+                   "inputs": {"model": model, "bends_json": json.dumps(doc, indent=1), "strict": False,
+                              "clamp": "none"}}
+        model = ["5", 0]
+    wf["6"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": s.get("prompt") or PROMPT_PLACEHOLDER}}
+    wf["7"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": s.get("negative") or ""}}
+    wf["8"] = {"class_type": "EmptyLatentImage", "inputs": {"width": s.get("width", 512), "height": s.get("height", 512),
+                                                             "batch_size": 1}}
+    wf["9"] = {"class_type": "KSampler", "inputs": {
+        "model": model, "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["8", 0], "seed": s["seed"],
+        "steps": s["steps"], "cfg": s["cfg"], "sampler_name": s["sampler"], "scheduler": s["scheduler"],
+        "denoise": s.get("denoise", 1.0),
+        # read by the ComfyUI frontend when the image is dropped (keeps the seed), ignored by the server
+        "control_after_generate": "fixed"}}
+    wf["10"] = {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": vae}}
+    wf["11"] = {"class_type": "SaveImage", "inputs": {"images": ["10", 0], "filename_prefix": "model_bending_kb"}}
+    return wf
+
+
 def build_index(root: Path, out: Path | None = None) -> dict:
     """Validate everything and rebuild index/records.jsonl, cells.jsonl and findings.jsonl. Returns counts and
     validation errors."""
@@ -658,6 +823,9 @@ def build_index(root: Path, out: Path | None = None) -> dict:
     if p.exists():
         cell_ints = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
     cells = aggregate_cells(summaries, findings, cell_ints)
+    aliases = id_aliases(root)
+    if aliases["records"] or aliases["baselines"]:
+        (out / "id_aliases.json").write_text(json.dumps(aliases, indent=1), encoding="utf-8")
     _write_jsonl(out / "records.jsonl", summaries)
     _write_jsonl(out / "cells.jsonl", cells)
     _write_jsonl(out / "findings.jsonl", findings)
@@ -666,6 +834,26 @@ def build_index(root: Path, out: Path | None = None) -> dict:
             "sources": dict(Counter(s["source"] for s in summaries))}
     (out / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     return {**meta, "errors": errors}
+
+
+def id_aliases(root: Path) -> dict:
+    """Old id -> current id for records and baselines, from migrations/id_scheme_*.json, chained across schemes, so
+    links made with an id from before a migration still resolve."""
+    rec, base = {}, {}
+    for p in sorted(Path(root).glob("migrations/id_scheme_*.json")):
+        m = json.loads(p.read_text(encoding="utf-8"))
+        for src, dst in ((m.get("records", {}), rec), (m.get("baselines", {}), base)):
+            for old, new in src.items():
+                for k, v in list(dst.items()):
+                    if v == old:
+                        dst[k] = new
+                dst[old] = new
+    return {"records": rec, "baselines": base}
+
+
+def resolve_id(rid: str, aliases: dict, kind: str = "records") -> str:
+    """The current id for a record (or baseline) id that may predate a migration."""
+    return (aliases or {}).get(kind, {}).get(rid, rid)
 
 
 def _write_jsonl(p: Path, rows) -> None:
@@ -686,6 +874,27 @@ def load_vocab() -> dict:
     return json.loads((DATA / "vocab" / "effects.json").read_text(encoding="utf-8"))
 
 
+# The knowledge base's description prompt. The community captions were written with exactly this text (by the
+# maintainer's captioner); agents describing a user's results use it too, so descriptions stay comparable. Change the
+# wording only together with CAPTION_PROMPT_VERSION.
+CAPTION_PROMPT_VERSION = "kb-caption-v1"
+CAPTION_PROMPT = """You describe the visual effect of interventions inside an image-generation model, for a public knowledge
+base that artists and agents consult. Each labelled pair shows the unchanged picture (left, "before") and the changed
+one (right, "after"), made with the same seed and prompt. You are not told what was done; describe only what you see.
+
+For every label give:
+- caption: what the AFTER image shows, 8-20 plain words.
+- change: what changed from before to after, one sentence an artist would understand (composition, subject,
+  palette, light, texture, style, abstraction). Say "almost no visible change" when that is the case.
+- keywords: 3-8 short lowercase phrases someone might search for.
+- effect_tags: tags from this list only (use none that do not fit): {tags}"""
+
+
+def caption_prompt() -> str:
+    """CAPTION_PROMPT with the current effect-tag vocabulary filled in."""
+    return CAPTION_PROMPT.replace("{tags}", ", ".join(load_vocab()["tags"]))
+
+
 def goal_tags(goal: str, vocab: dict | None = None) -> list[str]:
     """Effect tags a plain-language goal asks for, e.g. "more abstract, keep the subject" -> abstract, subject_kept."""
     vocab = vocab or load_vocab()
@@ -701,6 +910,22 @@ def goal_tags(goal: str, vocab: dict | None = None) -> list[str]:
 _GRADE_BONUS = {"replicated": 1.0, "multi-prompt": 0.6, "multi-seed": 0.4, "anecdotal": 0.0}
 
 
+def risk_summary(c: dict) -> dict:
+    """What can go wrong with a cell's bend, in words an agent can pass on: how often it broke (and why), how often
+    the subject faded or the image read as noise/blobs, and descriptions of failing renders (with their author)."""
+    s = c.get("signals") or {}
+    parts = []
+    if c.get("degenerate_rate"):
+        why = ", ".join(c.get("broken_reasons") or {}) or "broken"
+        parts.append(f"{round(100 * c['degenerate_rate'])}% of renders broke ({why})")
+    if s.get("subject_fades"):
+        parts.append(f"subject faded in {round(100 * s['subject_fades'])}%")
+    if s.get("noise_or_blob_look"):
+        parts.append(f"read as noise or blobs in {round(100 * s['noise_or_blob_look'])}%")
+    return {"summary": "; ".join(parts) or "no failures seen", "broken_share": c.get("degenerate_rate", 0.0),
+            "signals": s, "failure_notes": c.get("failure_notes", []), "broken_examples": c.get("broken_examples", {})}
+
+
 def rank_cells(cells: list[dict], goal: str = "", *, family: str | None = None, arch: str | None = None,
                tags: list[str] | None = None, findings: list[dict] = (), limit: int = 8,
                vocab: dict | None = None) -> dict:
@@ -713,6 +938,8 @@ def rank_cells(cells: list[dict], goal: str = "", *, family: str | None = None, 
     pool = [c for c in cells if not fam or c["family"] == fam]
     ranked = []
     for c in pool:
+        if c.get("n_intact", c["n"]) == 0 and "degenerate" not in want:
+            continue  # only broken renders: a known failure, not a recipe
         tag_score = sum(c["effect_tags"].get(t, {}).get("share", 0.0) for t in want)
         kw_score = 0.3 * len(words & {k.lower() for k in c.get("keywords", [])})
         if want and tag_score == 0 and kw_score == 0:
@@ -738,6 +965,7 @@ def rank_cells(cells: list[dict], goal: str = "", *, family: str | None = None, 
                         "effects": {t: v for t, v in list(c["effect_tags"].items())[:6]},
                         "keywords": c.get("keywords", [])[:8],
                         "degenerate_rate": c["degenerate_rate"], "examples": c["examples"][:3],
+                        "risks": risk_summary(c),
                         "findings": [{"claim": fids[f]["claim"], "author": fids[f]["author"],
                                       "citation": fids[f].get("citation")} for f in c["findings"] if f in fids][:3],
                         "interpretations": c.get("interpretations", [])[:3]})
@@ -748,6 +976,74 @@ def rank_cells(cells: list[dict], goal: str = "", *, family: str | None = None, 
                if f.get("level") == "general" and (not fam or fam in (f.get("scope") or {}).get("family", [fam]))]
     return {"goal": goal, "effect_tags": want, "family": fam, "results": results, "note": note,
             "considered": len(pool), "general_findings": general}
+
+
+# --------------------------------------------------------------------------- source references, navigator links
+# A bend can say where it came from with a "kb" key: {"dataset": ..., "cell": ..., "record": ...}, each optional
+# (no dataset = the community one). Apply Bends from JSON ignores the key; check_bends keeps and checks it.
+COMMUNITY_DATASET = "abuzreq/model-bending-knowledge-base"
+NAVIGATOR = "https://abuzreq-model-bending-navigator.static.hf.space"
+KB_REF_KEYS = ("dataset", "cell", "record")
+TRAY_VERSION = 1
+
+
+def kb_ref(given) -> tuple[dict | None, list[str]]:
+    """A bend's "kb" value, tidied: (the reference or None, problems)."""
+    if not isinstance(given, dict):
+        return None, ['kb must be an object such as {"cell": "sd1|mid|…"} or {"record": "<id>"}']
+    ref = {k: given[k] for k in KB_REF_KEYS if isinstance(given.get(k), str) and given[k].strip()}
+    problems = [f"kb.{k} is not understood (kb holds {', '.join(KB_REF_KEYS)}, each a string)"
+                for k in given if k not in ref]
+    if not ({"cell", "record"} & set(ref)):
+        problems.append("kb names no cell or record, so it cannot be traced back")
+    return (ref or None), problems
+
+
+def cell_link(cell_key: str, base: str = NAVIGATOR) -> str:
+    """The navigator page for one cell: its before/after examples, evidence and risks."""
+    from urllib.parse import quote
+    return f"{base}/?cell={quote(cell_key, safe='')}"
+
+
+def record_link(record_id: str, base: str = NAVIGATOR) -> str:
+    """The navigator page for one record: its before/after (with a wipe), captions, measurements and setup."""
+    return f"{base}/?record={record_id}"
+
+
+def ref_link(ref: dict | None) -> str | None:
+    """The most specific navigator page for a kb reference (a record's page, else its cell's), when it is in the
+    community knowledge base."""
+    if not ref or ref.get("dataset", COMMUNITY_DATASET) != COMMUNITY_DATASET:
+        return None
+    if re.fullmatch(r"[0-9a-f]{8,40}", ref.get("record", "")):
+        return record_link(ref["record"])
+    return cell_link(ref["cell"]) if ref.get("cell") else None
+
+
+def tray_link(bends: list[dict], base: str = NAVIGATOR) -> str:
+    """A link that carries separate bends (each meant to be tried on its own) to the navigator, or to open_tray.
+    The bends travel in the URL fragment, which browsers do not send to the server."""
+    import base64
+    raw = json.dumps({"v": TRAY_VERSION, "bends": bends}, separators=(",", ":"), ensure_ascii=False)
+    return f"{base}/#tray=" + base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
+
+
+def read_tray(text: str) -> list[dict]:
+    """The bends in a tray link (or in the bare `tray=…` part of one). Raises ValueError when there is none."""
+    import base64
+    m = re.search(r"tray=([A-Za-z0-9_-]+)", text or "")
+    if not m:
+        raise ValueError("this is not a navigator tray link (it has no '#tray=…' part)")
+    data = m.group(1)
+    try:
+        tray = json.loads(base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8"))
+    except ValueError:
+        raise ValueError("the tray part of this link is damaged: copy the whole link again") from None
+    if not isinstance(tray, dict) or not isinstance(tray.get("bends"), list):
+        raise ValueError("the tray holds no list of bends")
+    if not isinstance(tray.get("v", 1), int) or tray.get("v", 1) > TRAY_VERSION:
+        raise ValueError(f"this tray was made by a newer navigator (version {tray.get('v')}); update the skill")
+    return tray["bends"]
 
 
 # --------------------------------------------------------------------------- reading ComfyUI prompts

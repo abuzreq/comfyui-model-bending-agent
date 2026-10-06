@@ -131,6 +131,36 @@ def test_index_cells_grades_and_ranking(tmp_path):
     assert res["note"] is None  # sd14 records exist for the sd14 query
 
 
+def test_broken_renders_leave_statistics_but_describe_the_risk(tmp_path):
+    def rot(seed, lp, deg, ret, broken, change):
+        r = kb.make_record(source="sweep", model={"arch": "sd15", "checkpoint": "rv.safetensors"},
+                           setup={**SETUP, "seed": seed, "prompt": "p"}, consent={"prompt": True},
+                           bends=[{"path": "output_blocks.10.1", "op": "rotate", "args": {"angle_degrees": 90}}])
+        m = kb.make_measurements(r["id"], {"lpips_distance": lp, "clip_degenerate": deg, "prompt_retention": ret,
+                                           "degenerate": kb.measure("degenerate", broken,
+                                                                    reasons=["clip_degenerate"] if broken else [])})
+        a = kb.ai("claude-opus-5-5", "v1")
+        ints = [kb.make_interpretation({"record": r["id"]}, "effect_tags", ["degenerate"] if broken else ["abstract"], a),
+                kb.make_interpretation({"record": r["id"]}, "change", change, a)]
+        kb.save_record(tmp_path, r, {"output.webp": b"img"}, m, ints)
+
+    rot(1, 0.4, 0.1, 0.95, False, "the scene turns into a new coastline")
+    rot(2, 0.5, 0.7, 0.70, False, "the subject fades into blobs")
+    rot(3, 0.9, 0.95, 0.5, True, "dissolves into grey static")
+    kb.build_index(tmp_path)
+    c = kb.read_jsonl(tmp_path / "index" / "cells.jsonl")[0]
+    assert c["n"] == 3 and c["n_intact"] == 2 and c["degenerate_rate"] == 0.333
+    assert c["measurements"]["lpips_distance"]["mean"] == 0.45  # the broken render's 0.9 is left out
+    assert "degenerate" not in c["effect_tags"] and c["effect_tags"]["abstract"]["count"] == 2
+    assert c["broken_reasons"] == {"clip_degenerate": 1}
+    assert c["signals"]["subject_fades"] == 0.667 and c["signals"]["noise_or_blob_look"] == 0.667
+    assert [n["value"] for n in c["failure_notes"]] == ["dissolves into grey static", "the subject fades into blobs"]
+    assert c["failure_notes"][0]["broken"] and c["failure_notes"][0]["author"]["model"] == "claude-opus-5-5"
+    assert len(c["broken_examples"]) == 1 and len(c["examples"]) == 2
+    r = kb.rank_cells([c], "more abstract")["results"][0]
+    assert r["risks"]["summary"].startswith("33% of renders broke (clip_degenerate)")
+
+
 def test_record_json_never_rewritten_and_interpretations_dedupe(tmp_path):
     r = rec()
     i = kb.make_interpretation({"record": r["id"]}, "caption", "x", kb.human("A"))
@@ -172,3 +202,70 @@ def test_setup_from_api_prompt():
     assert bends[1]["t"] == [0.5, 0.0] and bends[1]["op"] == "rotate"
     r = kb.make_record(source="session", model=model, setup=setup, bends=bends, salt="s")
     assert kb.validate(r, "record") == [] and r["bends"][0]["window"] == "early" and r["bends"][1]["window"] == "mid_to_end"
+
+
+def test_degenerate_rule_is_strict():
+    assert kb.degenerate_reasons([]) == []
+    # smooth blobs, flat textures and lost subjects were often judged fine: recorded, not broken
+    assert kb.degenerate_reasons(["blob", "flat", "clipped"], prompt_retention=0.5, clip_degenerate=0.3) == []
+    assert kb.degenerate_reasons(["noise"]) == ["noise"]
+    assert kb.degenerate_reasons(["extreme", "blob"]) == ["extreme"]
+    assert kb.degenerate_reasons([], prompt_retention=0.8, clip_degenerate=0.92) == ["clip_degenerate"]
+    assert kb.degenerate_reasons([], prompt_retention=0.9, clip_degenerate=0.95) == []  # subject kept
+    assert kb.degenerate_reasons([], prompt_retention=0.6, clip_degenerate=0.89) == []  # below the mass cut
+    assert kb.degenerate_reasons([], clip_degenerate=0.93) == []                         # no prompt: stricter cut
+    assert kb.degenerate_reasons([], clip_degenerate=0.96) == ["clip_degenerate"]
+    assert "calibrated" in kb.METRICS["degenerate"]["method"]
+
+
+def test_ids_are_frozen_to_a_fixed_field_list():
+    r = rec()
+    assert r["id_scheme"] == kb.ID_SCHEME
+    # new fields outside the frozen list (loaders, notes...) never change a published id
+    same = kb.record_id({**r["model"], "clip": "c.safetensors", "vae": "v.safetensors"}, {**r["setup"], "note": "x"},
+                        r["bends"])
+    assert same == r["id"]
+    # a fact inside the list does
+    assert kb.record_id(r["model"], {**r["setup"], "negative": ""}, r["bends"]) != r["id"]
+    assert kb.baseline_id(r) == kb.record_id(r["model"], r["setup"], [])
+
+
+def test_comfy_workflow_renders_the_record():
+    r = kb.make_record(source="sweep", model={"checkpoint": "LCM.safetensors", "arch": "sd15", "clip": "clip.st",
+                                              "vae": "vae.st", "model_sampling": "lcm"},
+                       setup={**SETUP, "sampler": "lcm", "steps": 6, "cfg": 1.5}, consent={"prompt": True},
+                       bends=[{"path": "middle_block.1", "op": "rotate", "args": {"angle_degrees": 90},
+                               "steps_min": 0, "steps_max": 1}])
+    wf = kb.comfy_workflow(r)
+    types = {n["class_type"] for n in wf.values()}
+    assert {"CLIPLoader", "VAELoader", "ModelSamplingDiscrete", "ApplyBendsFromJSON", "KSampler"} <= types
+    bend = next(n for n in wf.values() if n["class_type"] == "ApplyBendsFromJSON")["inputs"]
+    doc = json.loads(bend["bends_json"])
+    assert bend["clamp"] == "none" and doc["steps_min"] == 0 and doc["steps_max"] == 1
+    assert doc["bends"] == [{"path": "middle_block.1", "module_type": "rotate", "module_args": {"angle_degrees": 90}}]
+    ks = next(n for n in wf.values() if n["class_type"] == "KSampler")["inputs"]
+    assert (ks["seed"], ks["steps"], ks["cfg"], ks["sampler_name"]) == (42, 6, 1.5, "lcm")
+    assert ks["control_after_generate"] == "fixed"
+    texts = [n["inputs"]["text"] for n in wf.values() if n["class_type"] == "CLIPTextEncode"]
+    assert texts == ["Analog style portrait of a person", "blurry"]
+    # private prompt -> placeholder; no bends (a baseline) -> no bend node
+    private = kb.comfy_workflow(rec(consent=False))
+    assert kb.PROMPT_PLACEHOLDER in [n["inputs"].get("text") for n in private.values()]
+    assert "ApplyBendsFromJSON" not in {n["class_type"] for n in kb.comfy_workflow({**r, "bends": []}).values()}
+
+
+def test_id_aliases_chain_across_migrations(tmp_path):
+    (tmp_path / "migrations").mkdir()
+    (tmp_path / "migrations" / "id_scheme_1.json").write_text(json.dumps({"records": {"a": "b"}, "baselines": {}}))
+    (tmp_path / "migrations" / "id_scheme_2.json").write_text(json.dumps({"records": {"b": "c"}, "baselines": {}}))
+    al = kb.id_aliases(tmp_path)
+    assert kb.resolve_id("a", al) == "c" and kb.resolve_id("b", al) == "c" and kb.resolve_id("z", al) == "z"
+
+
+def test_ids_normalise_numbers():
+    r = rec()
+    floaty = {**r["setup"], "cfg": 7, "steps": 20.0}
+    assert kb.record_id(r["model"], floaty, r["bends"]) == kb.record_id(r["model"], {**r["setup"], "cfg": 7.0}, r["bends"])
+    b = [{**r["bends"][0], "args": {"scalar": 0.0}}]
+    assert kb.record_id(r["model"], r["setup"], b) == kb.record_id(r["model"], r["setup"], [{**b[0], "args": {"scalar": 0}}])
+    assert kb.record_id(r["model"], {**r["setup"], "cfg": 7.5}, r["bends"]) != kb.record_id(r["model"], floaty, r["bends"])
