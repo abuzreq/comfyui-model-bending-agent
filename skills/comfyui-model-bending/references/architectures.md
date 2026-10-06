@@ -114,6 +114,11 @@ Guidance is distilled: use cfg 1 plus `FluxGuidance`, so there is no uncond batc
 - Sub-module paths (`double_blocks.i.img_attn.qkv`, `.img_mlp`, `single_blocks.i.linear2`, …) still suit L3
   work, such as K/V routing on `img_attn.qkv`. Use channel-wise ops there; `spatial` exists only on
   `DiT Block Bending`.
+- **In the knowledge base**, a transformer bend is a whole block through DiT Block Bending (`"node": "dit_block"`,
+  with its `stream` and `spatial`), and its region is the block's third of its stack: `double.early` (0–6),
+  `double.mid` (7–12), `double.late` (13–18), `single.early` (0–12), `single.mid` (13–25), `single.late` (26–37) on
+  Flux.1; `joint.*` on SD3; `blocks.*` on WAN. A model's own block counts (`kb_run.py layers run.json`) win over these
+  usual ones. Recipes for these bends carry a `fragment` for `bend_run`.
 - Hardware: Flux needs 12 GB or more of VRAM in fp8. On a 6 GB card it needs GGUF Q4 or smaller. Check free
   VRAM with `comfy_canvas.py status` first.
 

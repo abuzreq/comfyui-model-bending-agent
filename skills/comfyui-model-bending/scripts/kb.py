@@ -36,7 +36,8 @@ SCHEMA_VERSION = "1.0"
 SOURCES = ("paper", "paper_reproduction", "author_experiment", "sweep", "run", "session")
 INTERPRETATION_KINDS = ("caption", "change", "keywords", "effect_tags", "concepts", "note", "verdict")
 ARCH_FAMILY = {"sd14": "sd1", "sd15": "sd1", "sd1": "sd1", "sd2": "sd2", "sd21": "sd2", "sdxl": "sdxl",
-               "sd3": "sd3", "flux": "flux", "wan21": "wan", "wan21_i2v": "wan", "wan22": "wan"}
+               "sd3": "sd3", "sd35": "sd3", "flux": "flux", "flux2": "flux2", "wan21": "wan", "wan21_i2v": "wan",
+               "wan22": "wan"}
 
 # What each standard measurement means. The paper's four distances come first; new producers use the same ones so
 # numbers stay comparable across sources.
@@ -142,6 +143,8 @@ def guess_arch(checkpoint: str) -> str | None:
         return "wan22"
     if "wan" in n:
         return "wan21_i2v" if "i2v" in n else "wan21"
+    if re.search(r"flux[._-]?2", n):
+        return "flux2"
     if "flux" in n:
         return "flux"
     if re.search(r"sd3|stable-diffusion-3", n):
@@ -220,6 +223,130 @@ def unet_kind(path: str, family: str = "sd1") -> str:
     if re.fullmatch(r"(input_blocks|output_blocks)\.\d+", path):
         return "block"
     return "other"
+
+
+# --------------------------------------------------------------------------- transformer (DiT) models
+UNET_REGIONS = ("in.hi", "in.mid", "in.lo", "mid", "out.lo", "out.mid", "out.hi")
+# Block stacks by family, as ComfyUI names them, with their usual block counts. A model's own counts (read with
+# the Bendable Layer Catalogue) go in model.blocks and win: Flux.2 variants and SD3.5 Large differ from these.
+# DiT Block Bending addresses blocks as "double:<i>" (the first of the non-single lists the model has) and
+# "single:<i>" (single_blocks).
+DIT_STACKS = {"flux": {"double_blocks": 19, "single_blocks": 38}, "flux2": {"double_blocks": 8, "single_blocks": 48},
+              "sd3": {"joint_blocks": 24}, "wan": {"blocks": 30}}
+_STACK_LABEL = {"double_blocks": "double", "single_blocks": "single", "joint_blocks": "joint", "blocks": "blocks",
+                "transformer_blocks": "transformer", "layers": "layers"}
+THIRDS = ("early", "mid", "late")
+_DIT_EMBED = ("img_in", "txt_in", "time_in", "vector_in", "guidance_in", "x_embedder", "context_embedder",
+              "t_embedder", "y_embedder", "pos_embed", "patch_embedding", "text_embedding", "time_embedding",
+              "time_projection", "img_emb")
+_DIT_OUT = ("final_layer", "head", "norm_out", "proj_out")
+
+
+def is_dit(family: str, blocks: dict | None = None) -> bool:
+    """A transformer model: a known DiT family, or a model whose block stacks were read."""
+    return family in DIT_STACKS or bool(dit_stacks("", blocks))
+
+
+def dit_stacks(family: str, blocks: dict | None = None) -> dict[str, int]:
+    """{block list: count}, in the model's order: its own counts when known, else the family's usual ones."""
+    got = {k: int(v) for k, v in (blocks or {}).items()
+           if k in _STACK_LABEL and isinstance(v, (int, float)) and int(v) > 0}
+    return got or dict(DIT_STACKS.get(family, {}))
+
+
+def third_of(i: int, n: int) -> str:
+    """early / mid / late third of a stack of n blocks (Flux.1's 19 double blocks: 0-6, 7-12, 13-18)."""
+    return THIRDS[0] if i < math.ceil(n / 3) else THIRDS[1] if i < math.ceil(2 * n / 3) else THIRDS[2]
+
+
+def third_range(n: int, third: str) -> tuple[int, int]:
+    """(first, last) block of a third of a stack of n blocks."""
+    cuts = [0, math.ceil(n / 3), math.ceil(2 * n / 3), n]
+    k = THIRDS.index(third)
+    return cuts[k], cuts[k + 1] - 1
+
+
+def dit_block(path: str, family: str, blocks: dict | None = None) -> tuple[str, int] | None:
+    """(block list, index) a path or a DiT Block Bending selector ("double:3", a range's middle) points at."""
+    stacks = dit_stacks(family, blocks)
+    m = re.fullmatch(r"\s*(double|single)\s*:\s*(\d+)(?:\s*-\s*(\d+))?\s*", path or "")
+    if m:
+        name = "single_blocks" if m.group(1) == "single" else next(
+            (s for s in stacks if s != "single_blocks"), "double_blocks")
+        lo = int(m.group(2))
+        return name, (lo + int(m.group(3))) // 2 if m.group(3) else lo
+    m = re.match(r"([a-z_]+)\.(\d+)(?:\.|$)", path or "")
+    if m and m.group(1) in _STACK_LABEL:
+        return m.group(1), int(m.group(2))
+    return None
+
+
+def dit_selector(path: str, family: str, blocks: dict | None = None) -> str | None:
+    """The DiT Block Bending `blocks` value for a block path: double_blocks.3 -> "double:3", single_blocks.20 ->
+    "single:20" (joint_blocks / blocks / transformer_blocks are "double" there). Selectors pass through."""
+    if re.fullmatch(r"\s*(double|single)\s*:.*", path or ""):
+        return path.strip()
+    hit = dit_block(path, family, blocks)
+    if not hit or not re.fullmatch(r"[a-z_]+\.\d+", path):
+        return None
+    return f"{'single' if hit[0] == 'single_blocks' else 'double'}:{hit[1]}"
+
+
+def dit_group(path: str, family: str, blocks: dict | None = None) -> str | None:
+    """<stack>.<early|mid|late> for a block (double.early, single.late, joint.mid, blocks.early), embed or out."""
+    if (path or "").startswith(_DIT_EMBED):
+        return "embed"
+    if (path or "").startswith(_DIT_OUT):
+        return "out"
+    hit = dit_block(path, family, blocks)
+    if not hit:
+        return None
+    name, i = hit
+    n = dit_stacks(family, blocks).get(name) or i + 1
+    return f"{_STACK_LABEL[name]}.{third_of(min(i, n - 1), n)}"
+
+
+def dit_kind(path: str, stream: str | None = None) -> str:
+    """img_stream / txt_stream / both_streams for a whole block bent with DiT Block Bending (stream given);
+    otherwise the sub-module: img_attn, img_mlp, txt_attn, txt_mlp, linear1, linear2, x_attn, x_mlp, ctx_attn,
+    ctx_mlp, self_attn, cross_attn, ffn; block for a raw hook on a whole block; embed, out."""
+    if stream:
+        return {"img": "img_stream", "txt": "txt_stream", "both": "both_streams"}.get(stream, f"{stream}_stream")
+    p = "." + (path or "") + "."
+    for needle, kind in ((".img_attn.", "img_attn"), (".img_mlp.", "img_mlp"), (".txt_attn.", "txt_attn"),
+                         (".txt_mlp.", "txt_mlp"), (".linear1.", "linear1"), (".linear2.", "linear2"),
+                         (".x_block.attn", "x_attn"), (".x_block.mlp", "x_mlp"), (".context_block.attn", "ctx_attn"),
+                         (".context_block.mlp", "ctx_mlp"), (".self_attn.", "self_attn"),
+                         (".cross_attn.", "cross_attn"), (".ffn.", "ffn")):
+        if needle in p:
+            return kind
+    if (path or "").startswith(_DIT_EMBED):
+        return "embed"
+    if (path or "").startswith(_DIT_OUT):
+        return "out"
+    return "block"
+
+
+def regions(family: str, blocks: dict | None = None) -> list[str]:
+    """The parts of a model a full run must reach: the seven U-Net regions, or each block stack in thirds."""
+    if is_dit(family, blocks):
+        return [f"{_STACK_LABEL[s]}.{t}" for s in dit_stacks(family, blocks) for t in THIRDS]
+    return list(UNET_REGIONS)
+
+
+def architecture(family: str, blocks: dict | None = None) -> dict:
+    """How to draw a family's model (the navigator picks its diagram from this): a U-Net, or block stacks banded
+    into thirds."""
+    if not is_dit(family, blocks):
+        return {"diagram": "unet", "regions": list(UNET_REGIONS), "extra": ["embed", "out.conv"]}
+    stacks = []
+    for name, n in dit_stacks(family, blocks).items():
+        label = _STACK_LABEL[name]
+        stacks.append({"name": name, "label": label, "count": n,
+                       "selector": "single" if name == "single_blocks" else "double",
+                       "regions": [{"group": f"{label}.{t}", "from": third_range(n, t)[0], "to": third_range(n, t)[1]}
+                                   for t in THIRDS]})
+    return {"diagram": "stacks", "stacks": stacks, "extra": ["embed", "out"]}
 
 
 # --------------------------------------------------------------------------- amounts and windows
@@ -301,22 +428,28 @@ def window_of(start: float, end: float) -> str:
 KIND_ALIASES = {"res": "res_block", "attn": "attn_block"}  # model-profile block kinds -> kb kinds
 
 
-def norm_bend(b: dict, family: str, steps: int | None) -> dict:
-    """One bend in the record's vocabulary: path, op, args, where it sits, amount bucket and step window."""
+def norm_bend(b: dict, family: str, steps: int | None, blocks: dict | None = None) -> dict:
+    """One bend in the record's vocabulary: path, op, args, where it sits, amount bucket and step window. On a
+    transformer model, a bend through DiT Block Bending carries node "dit_block", its stream and spatial."""
     op = b.get("op") or b.get("module_type") or b.get("bend_module_type")
     args = b.get("args") or b.get("module_args") or {}
     if not args and "amount" in b and op in _MAIN_ARG:
         args = {_MAIN_ARG[op]: b["amount"]}
     path = b.get("path") or b.get("layer") or b.get("layer_path") or ""
     start, end = step_fraction(b, steps)
-    out = {"path": path, "op": op, "args": args,
-           "group": b.get("group") or unet_group(path, family),
-           "kind": KIND_ALIASES.get(b.get("kind"), b.get("kind")) if b.get("kind") else unet_kind(path, family),
+    dit = b.get("node") == "dit_block" or is_dit(family, blocks)
+    if b.get("node") == "dit_block":
+        b = {"stream": "img", "spatial": True, **b}
+    group = b.get("group") or (dit_group(path, family, blocks) if dit else unet_group(path, family))
+    kind = (KIND_ALIASES.get(b.get("kind"), b.get("kind")) if b.get("kind")
+            else dit_kind(path, b.get("stream") if b.get("node") == "dit_block" else None) if dit
+            else unet_kind(path, family))
+    out = {"path": path, "op": op, "args": args, "group": group, "kind": kind,
            "module_type": b.get("module_type_class") or b.get("layer_type") or None,
            "container": b.get("container") or b.get("container_type") or None,
            "start": start, "end": end, "window": window_of(start, end),
            "bucket": amount_bucket(op, args)}
-    for k in ("t", "steps", "steps_min", "steps_max", "blend", "label"):
+    for k in ("t", "steps", "steps_min", "steps_max", "blend", "label", "node", "stream", "spatial"):
         if b.get(k) is not None:
             out[k] = b[k]
     return {k: v for k, v in out.items() if v is not None}
@@ -341,7 +474,7 @@ def make_record(*, source: str, model: dict, setup: dict, bends: list[dict], out
         s["input_key"] = private_key(str(s["input_image"]), "" if consent["input_image"] else salt)
         if not consent["input_image"]:
             s.pop("input_image")
-    nb = [norm_bend(b, model["family"], s.get("steps")) for b in bends]
+    nb = [norm_bend(b, model["family"], s.get("steps"), model.get("blocks")) for b in bends]
     rid = record_id(model, s, nb)
     rec = {"id": rid, "id_scheme": ID_SCHEME, "schema_version": SCHEMA_VERSION, "source": source,
            "created": created or now(),
@@ -361,10 +494,18 @@ ID_MODEL_KEYS = ("family", "arch", "checkpoint")
 ID_SETUP_KEYS = ("route", "seed", "sampler", "scheduler", "steps", "cfg", "width", "height", "denoise", "end_at_frac",
                  "prompt", "prompt_key", "negative", "input_key")
 ID_BEND_KEYS = ("path", "op", "args", "start", "end", "blend")
+# Facts added after scheme 1 was published (transformer models, video). They are hashed only when a record has them,
+# so every id made before them stays the same.
+ID_SETUP_EXTRA = ("guidance", "shift", "latent", "frames", "fps")
+ID_BEND_EXTRA = ("node", "stream", "spatial")
 
 
 def _id_setup(setup: dict) -> dict:
-    return {k: setup[k] for k in ID_SETUP_KEYS if k in setup}
+    return {k: setup[k] for k in ID_SETUP_KEYS + ID_SETUP_EXTRA if k in setup}
+
+
+def _id_bend(b: dict) -> dict:
+    return {**{k: b.get(k) for k in ID_BEND_KEYS}, **{k: b[k] for k in ID_BEND_EXTRA if b.get(k) is not None}}
 
 
 def _id_value(v):
@@ -385,7 +526,7 @@ def record_id(model: dict, setup: dict, bends: list[dict]) -> str:
     """The frozen id of a record (ID_SCHEME): its model, setup and bends, limited to the ID_* fields, with numbers
     normalised (_id_value)."""
     return digest(_id_value({"model": {k: model.get(k) for k in ID_MODEL_KEYS}, "setup": _id_setup(setup),
-                             "bends": [{k: b.get(k) for k in ID_BEND_KEYS} for b in bends]}))
+                             "bends": [_id_bend(b) for b in bends]}))
 
 
 def baseline_id(rec: dict) -> str:
@@ -742,68 +883,157 @@ def _author_label(a: dict) -> str:
 
 
 def recipe_template(rec: dict) -> dict:
-    """An Apply Bends from JSON bend for this record (amount from this example; cells list the tested range)."""
+    """An Apply Bends from JSON bend for this record (amount from this example; cells list the tested range). A
+    bend through DiT Block Bending also carries its stream and spatial, and a `fragment` for bend_run."""
     b = rec["bends"][0]
     out = {"path": b["path"], "module_type": b["op"], "module_args": b.get("args") or {}}
     if b.get("window") != "all":
         out["t"] = [round(1 - b.get("start", 0.0), 3), round(1 - b.get("end", 1.0), 3)]
+    if b.get("node") == "dit_block":
+        out.update(node="dit_block", stream=b.get("stream", "img"), spatial=b.get("spatial", True))
+        frag = dit_fragment(b, rec["model"].get("family", ""), rec["model"].get("blocks"))
+        if frag:
+            out["fragment"] = frag
     return out
 
 
 PROMPT_PLACEHOLDER = "<your prompt: this record's prompt was not shared>"
+# the bending-module node for each op (DiT Block Bending takes a module, not JSON)
+MODULE_NODES = {"rotate": "Rotate Module (Bending)", "scale": "Scale Module (Bending)",
+                "multiply": "Multiply Scalar Module (Bending)", "add_scalar": "Add Scalar Module (Bending)",
+                "add_noise": "Add Noise Module (Bending)", "threshold": "Threshold Module (Bending)"}
+_MODULE_DEFAULTS = {"add_noise": {"seed": 0}}
+# the empty latent each family samples from, when the record does not name one
+_LATENTS = {"flux": "EmptySD3LatentImage", "sd3": "EmptySD3LatentImage", "flux2": "EmptyFlux2LatentImage",
+            "wan": "EmptyHunyuanLatentVideo"}
+
+
+def _dit_nodes(b: dict, family: str, blocks: dict | None, model_link: list, strict: bool) -> dict:
+    """{"module": node, "bend": node} for one DiT Block Bending bend; the bend node's model input is model_link."""
+    op = b.get("op") or b.get("module_type")
+    if op not in MODULE_NODES:
+        raise ValueError(f"no bending-module node for op {op!r} (DiT Block Bending takes: {sorted(MODULE_NODES)})")
+    sel = dit_selector(b["path"], family, blocks)
+    if not sel:
+        raise ValueError(f"{b['path']!r} is not a transformer block (e.g. double_blocks.3, single_blocks.20)")
+    args = {**_MODULE_DEFAULTS.get(op, {}), **(b.get("args") or b.get("module_args") or {})}
+    bend = {"model": model_link, "bending_module": None, "blocks": sel, "stream": b.get("stream", "img"),
+            "spatial": bool(b.get("spatial", True)), "strict": strict}
+    if b.get("window", "all") != "all" or b.get("t"):
+        hi, lo = b["t"] if b.get("t") else (1 - b.get("start", 0.0), 1 - b.get("end", 1.0))
+        bend.update(t_start=round(float(hi), 3), t_end=round(float(lo), 3))
+    return {"module": {"class_type": MODULE_NODES[op], "inputs": args},
+            "bend": {"class_type": "DiT Block Bending", "inputs": bend}}
+
+
+def dit_fragment(b: dict, family: str, blocks: dict | None = None) -> dict | None:
+    """A DiT Block Bending bend as a bend_run fragment: the module node feeding DiT Block Bending on the model
+    link."""
+    try:
+        n = _dit_nodes(b, family, blocks, ["@model", 0], strict=False)
+    except ValueError:
+        return None
+    n["bend"]["inputs"]["bending_module"] = ["module", 0]
+    n["bend"]["title"] = "DiT Block Bending (knowledge base)"
+    return {"nodes": n, "out": ["bend", 0]}
 
 
 def comfy_workflow(rec: dict, strict: bool = False) -> dict | None:
-    """A ComfyUI API-format workflow that renders this record from its facts: the checkpoint (plus separate text
-    encoder / VAE / sampling mode when the record names them), its sampler, steps, cfg, seed, size, prompt and
-    negative, and its bends in one Apply Bends from JSON node with clamping off, so the amounts are used exactly.
-    strict makes the node fail on a path it would otherwise skip (a sweep must not save a render that was not bent).
-    Prompts that were not shared become a placeholder. None for routes other than txt2img."""
+    """A ComfyUI API-format workflow that renders this record from its facts: the model (a checkpoint, or a
+    diffusion model loaded with UNETLoader plus its text encoders and VAE), sampling mode, sampler, steps, cfg,
+    guidance, seed, size, prompt and negative. Bends on module paths go in one Apply Bends from JSON node with
+    clamping off, so the amounts are used exactly; bends through DiT Block Bending (transformer models) each get a
+    bending-module node and a DiT Block Bending node. strict makes the nodes fail where they would otherwise skip
+    (a sweep must not save a render that was not bent). Prompts that were not shared become a placeholder.
+    txt2img, and txt2video saved as an animated WebP; None for other routes."""
     s, m = rec["setup"], rec["model"]
-    if s.get("route", "txt2img") != "txt2img" or not m.get("checkpoint"):
+    route = s.get("route", "txt2img")
+    if route not in ("txt2img", "txt2video") or not m.get("checkpoint"):
         return None
+    family, blocks = m.get("family", ""), m.get("blocks")
+    plain = [b for b in rec["bends"] if b.get("node") != "dit_block"]
+    dits = [b for b in rec["bends"] if b.get("node") == "dit_block"]
     bends = []
-    for b in rec["bends"]:
+    for b in plain:
         bends.append({"path": b["path"], "module_type": b["op"], "module_args": b.get("args") or {},
                       **({"blend": b["blend"]} if b.get("blend") is not None else {})})
     doc: dict = {"bends": bends}
-    lo = next((b.get("steps_min") for b in rec["bends"] if b.get("steps_min") is not None), None)
-    hi = next((b.get("steps_max") for b in rec["bends"] if b.get("steps_max") is not None), None)
+    lo = next((b.get("steps_min") for b in plain if b.get("steps_min") is not None), None)
+    hi = next((b.get("steps_max") for b in plain if b.get("steps_max") is not None), None)
     if lo is not None or hi is not None:  # executed-step window, as the producer sent it
         doc.update({k: v for k, v in (("steps_min", lo), ("steps_max", hi)) if v is not None})
-    elif any(b.get("window", "all") != "all" for b in rec["bends"]):
-        for jb, b in zip(bends, rec["bends"]):
+    elif any(b.get("window", "all") != "all" for b in plain):
+        for jb, b in zip(bends, plain):
             jb["t"] = [round(1 - b.get("start", 0.0), 3), round(1 - b.get("end", 1.0), 3)]
-    clip, vae = ["1", 1], ["1", 2]
-    wf = {"1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": m["checkpoint"]}}}
-    if m.get("clip"):
+    clip, vae, model = ["1", 1], ["1", 2], ["1", 0]
+    if m.get("loader") == "unet":
+        wf = {"1": {"class_type": "UNETLoader", "inputs": {"unet_name": m["checkpoint"],
+                                                           "weight_dtype": m.get("weight_dtype") or "default"}}}
+    elif m.get("loader") == "gguf":
+        wf = {"1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": m["checkpoint"]}}}
+    else:
+        wf = {"1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": m["checkpoint"]}}}
+    clips = list(m.get("clips") or [])
+    if m.get("clip") and not clips:
         wf["2"] = {"class_type": "CLIPLoader", "inputs": {"clip_name": m["clip"], "type": "stable_diffusion"}}
+    elif len(clips) == 1:
+        wf["2"] = {"class_type": "CLIPLoader",
+                   "inputs": {"clip_name": clips[0], "type": m.get("clip_type") or "stable_diffusion"}}
+    elif len(clips) == 2:
+        wf["2"] = {"class_type": "DualCLIPLoader",
+                   "inputs": {"clip_name1": clips[0], "clip_name2": clips[1], "type": m.get("clip_type") or "flux"}}
+    elif len(clips) == 3:
+        wf["2"] = {"class_type": "TripleCLIPLoader",
+                   "inputs": {"clip_name1": clips[0], "clip_name2": clips[1], "clip_name3": clips[2]}}
+    if "2" in wf:
         clip = ["2", 0]
     if m.get("vae"):
         wf["3"] = {"class_type": "VAELoader", "inputs": {"vae_name": m["vae"]}}
         vae = ["3", 0]
-    model = ["1", 0]
     if m.get("model_sampling"):
         wf["4"] = {"class_type": "ModelSamplingDiscrete", "inputs": {"model": model, "sampling": m["model_sampling"],
                                                                      "zsnr": False}}
         model = ["4", 0]
+    if s.get("shift") is not None:
+        wf["13"] = {"class_type": "ModelSamplingSD3", "inputs": {"model": model, "shift": s["shift"]}}
+        model = ["13", 0]
     if bends:
         wf["5"] = {"class_type": "ApplyBendsFromJSON", "_meta": {"title": f"Bend (knowledge base record {rec['id']})"},
                    "inputs": {"model": model, "bends_json": json.dumps(doc, indent=1), "strict": strict,
                               "clamp": "none"}}
         model = ["5", 0]
+    for j, b in enumerate(dits):
+        n = _dit_nodes(b, family, blocks, model, strict)
+        mid, bid = str(20 + 2 * j), str(21 + 2 * j)
+        n["bend"]["inputs"]["bending_module"] = [mid, 0]
+        wf[mid] = n["module"]
+        wf[bid] = {**n["bend"], "_meta": {"title": f"DiT bend (knowledge base record {rec['id']})"}}
+        model = [bid, 0]
     wf["6"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": s.get("prompt") or PROMPT_PLACEHOLDER}}
     wf["7"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": s.get("negative") or ""}}
-    wf["8"] = {"class_type": "EmptyLatentImage", "inputs": {"width": s.get("width", 512), "height": s.get("height", 512),
-                                                             "batch_size": 1}}
+    positive = ["6", 0]
+    if s.get("guidance") is not None:
+        wf["12"] = {"class_type": "FluxGuidance", "inputs": {"conditioning": positive, "guidance": s["guidance"]}}
+        positive = ["12", 0]
+    latent = s.get("latent") or ("EmptyHunyuanLatentVideo" if route == "txt2video"
+                                 else _LATENTS.get(family, "EmptyLatentImage"))
+    size = {"width": s.get("width", 512), "height": s.get("height", 512), "batch_size": 1}
+    if route == "txt2video":
+        size["length"] = s.get("frames", 33)
+    wf["8"] = {"class_type": latent, "inputs": size}
     wf["9"] = {"class_type": "KSampler", "inputs": {
-        "model": model, "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["8", 0], "seed": s["seed"],
+        "model": model, "positive": positive, "negative": ["7", 0], "latent_image": ["8", 0], "seed": s["seed"],
         "steps": s["steps"], "cfg": s["cfg"], "sampler_name": s["sampler"], "scheduler": s["scheduler"],
         "denoise": s.get("denoise", 1.0),
         # read by the ComfyUI frontend when the image is dropped (keeps the seed), ignored by the server
         "control_after_generate": "fixed"}}
     wf["10"] = {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": vae}}
-    wf["11"] = {"class_type": "SaveImage", "inputs": {"images": ["10", 0], "filename_prefix": "model_bending_kb"}}
+    if route == "txt2video":
+        wf["11"] = {"class_type": "SaveAnimatedWEBP", "inputs": {
+            "images": ["10", 0], "filename_prefix": "model_bending_kb", "fps": s.get("fps", 16), "lossless": True,
+            "quality": 100, "method": "default"}}
+    else:
+        wf["11"] = {"class_type": "SaveImage", "inputs": {"images": ["10", 0], "filename_prefix": "model_bending_kb"}}
     return wf
 
 
@@ -836,9 +1066,22 @@ def build_index(root: Path, out: Path | None = None) -> dict:
     _write_jsonl(out / "findings.jsonl", findings)
     meta = {"built": now(), "schema_version": SCHEMA_VERSION, "records": len(summaries), "cells": len(cells),
             "findings": len(findings), "families": dict(Counter(s["model"]["family"] for s in summaries)),
-            "sources": dict(Counter(s["source"] for s in summaries))}
+            "sources": dict(Counter(s["source"] for s in summaries)),
+            "architectures": architectures(summaries)}
     (out / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     return {**meta, "errors": errors}
+
+
+def architectures(records: list[dict]) -> dict:
+    """{family: architecture(...)} for the families in these records; a transformer family's block counts are the
+    largest its records name (model.blocks), else its usual ones."""
+    blocks: dict[str, dict[str, int]] = defaultdict(dict)
+    for r in records:
+        fam = r["model"].get("family", "")
+        for k, v in (r["model"].get("blocks") or {}).items():
+            if isinstance(v, (int, float)):
+                blocks[fam][k] = max(blocks[fam].get(k, 0), int(v))
+    return {fam: architecture(fam, blocks.get(fam)) for fam in sorted({r["model"].get("family", "") for r in records})}
 
 
 def id_aliases(root: Path) -> dict:
@@ -1109,6 +1352,25 @@ def setup_from_api_prompt(prompt: dict, resolved_json: str | None = None) -> tup
         ct, ins = node.get("class_type"), node.get("inputs", {})
         if ct in _LOADERS and isinstance(ins.get(_LOADERS[ct]), str):
             model["checkpoint"] = ins[_LOADERS[ct]]
+            if ct in ("UNETLoader", "UnetLoaderGGUF"):
+                model["loader"] = "unet" if ct == "UNETLoader" else "gguf"
+        elif ct == "CLIPLoader" and isinstance(ins.get("clip_name"), str):
+            if ins.get("type", "stable_diffusion") == "stable_diffusion":
+                model["clip"] = ins["clip_name"]
+            else:
+                model.update(clips=[ins["clip_name"]], clip_type=ins.get("type"))
+        elif ct in ("DualCLIPLoader", "TripleCLIPLoader"):
+            names = [ins.get(f"clip_name{i}") for i in (1, 2, 3)]
+            model["clips"] = [n for n in names if isinstance(n, str)]
+            model["clip_type"] = ins.get("type") or ("sd3" if ct == "TripleCLIPLoader" else "flux")
+        elif ct == "VAELoader" and isinstance(ins.get("vae_name"), str):
+            model["vae"] = ins["vae_name"]
+        elif ct == "ModelSamplingDiscrete" and isinstance(ins.get("sampling"), str) and ins["sampling"] != "eps":
+            model["model_sampling"] = ins["sampling"]
+        elif ct == "ModelSamplingSD3" and isinstance(ins.get("shift"), (int, float)):
+            setup["shift"] = ins["shift"]
+        elif ct == "FluxGuidance" and isinstance(ins.get("guidance"), (int, float)):
+            setup["guidance"] = ins["guidance"]
         elif ct in _SAMPLERS:
             fields = _SAMPLERS[ct]
             for f in fields:
@@ -1118,15 +1380,17 @@ def setup_from_api_prompt(prompt: dict, resolved_json: str | None = None) -> tup
             neg = _text_of(prompt, ins.get("negative"))
             if pos is not None:
                 setup["prompt"] = pos
-            if neg:
+            if neg is not None:  # "" is an empty negative; absent means there was none to read
                 setup["negative"] = neg
             lat = _link(ins.get("latent_image"))
             ln = prompt.get(lat or "", {})
             if ln.get("class_type") == "RepeatLatentBatch":  # a starting picture repeated for several seeds
                 ln = prompt.get(_link(ln["inputs"].get("samples")) or "", {})
-            if ln.get("class_type") in ("EmptyLatentImage", "EmptySD3LatentImage"):
+            if ln.get("class_type") in ("EmptyLatentImage", "EmptySD3LatentImage", "EmptyFlux2LatentImage"):
                 setup["width"], setup["height"] = ln["inputs"].get("width"), ln["inputs"].get("height")
                 setup["route"] = "txt2img"
+                if ln["class_type"] != "EmptyLatentImage":  # SD's own latent is the default and stays unnamed
+                    setup["latent"] = ln["class_type"]
             elif ln.get("class_type") in ("EmptyHunyuanLatentVideo", "WanImageToVideo"):
                 setup["width"], setup["height"] = ln["inputs"].get("width"), ln["inputs"].get("height")
                 setup["frames"] = ln["inputs"].get("length")
@@ -1157,13 +1421,24 @@ def setup_from_api_prompt(prompt: dict, resolved_json: str | None = None) -> tup
             op, args, timing = _module_from(prompt, ins.get("bending_module"))
             paths = ins.get("path") or ins.get("blocks") or ""
             t = timing or ({"t": [ins["t_start"], ins["t_end"]]} if "t_start" in ins and "t_end" in ins else {})
+            dit = ({"node": "dit_block", "stream": ins.get("stream", "img"), "spatial": bool(ins.get("spatial", True))}
+                   if ct == "DiT Block Bending" else {})
             for p in [x.strip() for x in str(paths).split(",") if x.strip()]:
-                bends.append({"path": p, "op": op, "args": args, **t,
+                bends.append({"path": p, "op": op, "args": args, **t, **dit,
                               **({"steps": ins["steps_to_bend_str"]} if ins.get("steps_to_bend_str") else {})})
+        elif ct == "SaveAnimatedWEBP" and isinstance(ins.get("fps"), (int, float)):
+            setup["fps"] = ins["fps"]
     setup.setdefault("route", "txt2img")
     if setup.get("route") == "txt2img" and setup.get("denoise") == 1:
         setup.pop("denoise")
     model["arch"] = guess_arch(model.get("checkpoint", ""))
+    fam = family_of(model["arch"])
+    if setup.get("latent") and setup["latent"] == _LATENTS.get(fam):  # the family's own latent stays unnamed
+        setup.pop("latent")
+    for b in bends:  # one block of DiT Block Bending: named like the records name it (double_blocks.3)
+        if b.get("node") == "dit_block" and re.fullmatch(r"(double|single)\s*:\s*\d+", b["path"]):
+            name, i = dit_block(b["path"], fam)
+            b["path"] = f"{name}.{i}"
     return model, setup, bends
 
 

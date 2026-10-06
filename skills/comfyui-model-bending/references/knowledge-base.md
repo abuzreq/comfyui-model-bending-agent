@@ -142,7 +142,8 @@ keywords, prompt_version)`:
   - The record is written to the user's own knowledge base only. The prompt and input image go to a private
     `private.json`.
   - Nothing is uploaded. Session records stay on the user's computer.
-  - The community base takes **full runs**, not single rounds: `kb_run.py` plans one model across all seven U-Net
-    regions and at least 3 ops × 3 amounts, renders it, checks it and opens a pull request with the user's own
+  - The community base takes **full runs**, not single rounds: `kb_run.py` plans one model across every part of it
+    (the seven U-Net regions; on a transformer model, each block stack in thirds, bent with DiT Block Bending on the
+    image stream) and at least 3 ops × 3 amounts, renders it, checks it and opens a pull request with the user's own
     Hugging Face login. A run publishes its prompts under CC0, so confirm what goes in with the user before
     `submit`.

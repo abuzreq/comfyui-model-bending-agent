@@ -341,8 +341,9 @@ Round N
      told the bend. Show it to the user, who may edit or drop it. Then pass caption, change, keywords and effect tags
      to `log_round` with its `prompt_version`. That keeps everyone's descriptions comparable.
    - Nothing leaves the machine. The prompt and input image stay in a private sidecar.
-   - **Contributing to the community base is a full run, never single rounds:** one model, all seven U-Net regions,
-     at least 3 ops × 3 amounts (`scripts/kb_run.py`: init → render → check → submit; README *Contribute a run*).
+   - **Contributing to the community base is a full run, never single rounds:** one model, every part of it (the
+     seven U-Net regions; on a transformer model such as Flux, SD3 or WAN, each block stack in thirds, on the
+     image stream), at least 3 ops × 3 amounts (`scripts/kb_run.py`: init → render → check → submit; README *Contribute a run*).
      When the user asks to contribute, help them plan and render a run. Show them the coverage from `check` and
      what will be published (the run's prompts, under CC0) before `submit`, which opens a pull request with
      **their own** Hugging Face login, only after their explicit go-ahead. Models they would like to see bent go

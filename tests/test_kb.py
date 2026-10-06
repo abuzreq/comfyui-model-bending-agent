@@ -230,6 +230,49 @@ def test_ids_are_frozen_to_a_fixed_field_list():
     assert kb.baseline_id(r) == kb.record_id(r["model"], r["setup"], [])
 
 
+def test_transformer_facts_join_the_id_only_when_present():
+    r = rec()
+    # scheme-1 ids hash these bend keys with None when absent: the newer keys must not be hashed at all then
+    old = kb.digest(kb._id_value({"model": {k: r["model"].get(k) for k in kb.ID_MODEL_KEYS},
+                                  "setup": {k: r["setup"][k] for k in kb.ID_SETUP_KEYS if k in r["setup"]},
+                                  "bends": [{k: b.get(k) for k in kb.ID_BEND_KEYS} for b in r["bends"]]}))
+    assert old == r["id"]
+    dit = [{**r["bends"][0], "node": "dit_block", "stream": "img", "spatial": True}]
+    assert kb.record_id(r["model"], r["setup"], dit) != r["id"]
+    assert kb.record_id(r["model"], {**r["setup"], "guidance": 3.5}, r["bends"]) != r["id"]
+
+
+@pytest.mark.parametrize("path,family,blocks,group,kind", [
+    ("double_blocks.3", "flux", None, "double.early", "block"),
+    ("double_blocks.7.img_attn.qkv", "flux", None, "double.mid", "img_attn"),
+    ("single_blocks.37.linear2", "flux", None, "single.late", "linear2"),
+    ("double:13-18", "flux", None, "double.late", "block"),
+    ("single:0-6", "flux", None, "single.early", "block"),
+    ("joint_blocks.20.context_block.mlp.fc1", "sd3", None, "joint.late", "ctx_mlp"),
+    ("double:12", "sd3", {"joint_blocks": 38}, "joint.early", "block"),  # SD3.5 Large: 38 joint blocks
+    ("blocks.15.cross_attn.q", "wan", None, "blocks.mid", "cross_attn"),
+    ("img_in", "flux", None, "embed", "embed"),
+    ("final_layer.linear", "flux", None, "out", "out"),
+])
+def test_where_a_transformer_path_sits(path, family, blocks, group, kind):
+    assert kb.dit_group(path, family, blocks) == group
+    assert kb.dit_kind(path) == kind
+    assert kb.dit_kind(path, "txt") == "txt_stream"
+
+
+def test_architectures_and_regions():
+    assert kb.regions("sd1") == list(kb.UNET_REGIONS) and kb.architecture("sdxl")["diagram"] == "unet"
+    assert kb.regions("sd3") == ["joint.early", "joint.mid", "joint.late"]
+    assert kb.regions("flux2", {"double_blocks": 8, "single_blocks": 48})[-1] == "single.late"
+    a = kb.architecture("wan", {"blocks": 40})
+    assert a["stacks"] == [{"name": "blocks", "label": "blocks", "count": 40, "selector": "double", "regions": [
+        {"group": "blocks.early", "from": 0, "to": 13}, {"group": "blocks.mid", "from": 14, "to": 26},
+        {"group": "blocks.late", "from": 27, "to": 39}]}]
+    assert kb.dit_selector("joint_blocks.7", "sd3") == "double:7" and kb.dit_selector("single_blocks.2", "flux") == "single:2"
+    assert kb.dit_selector("double_blocks.2.img_mlp", "flux") is None
+    assert kb.guess_arch("flux2-dev.safetensors") == "flux2" and kb.guess_arch("flux1-schnell.safetensors") == "flux"
+
+
 def test_comfy_workflow_renders_the_record():
     r = kb.make_record(source="sweep", model={"checkpoint": "LCM.safetensors", "arch": "sd15", "clip": "clip.st",
                                               "vae": "vae.st", "model_sampling": "lcm"},

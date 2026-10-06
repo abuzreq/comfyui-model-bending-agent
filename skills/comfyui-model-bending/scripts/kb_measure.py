@@ -193,6 +193,32 @@ class Distances:
         return out
 
 
+def _sampled_frames(path: Path, k: int) -> list[Image.Image]:
+    """k evenly spaced frames of an animated WebP (a video record), or the picture itself."""
+    from PIL import ImageSequence
+    im = Image.open(path)
+    n = getattr(im, "n_frames", 1)
+    if n <= 1:
+        return [im.convert("RGB")]
+    want = sorted({round(i * (n - 1) / max(k - 1, 1)) for i in range(k)})
+    return [f.convert("RGB") for i, f in enumerate(ImageSequence.Iterator(im)) if i in want]
+
+
+def _pair_values(dist: "Distances", img: Path, base: Path, prompt: str | None, bid: str, k: int = 4) -> dict:
+    """The distances and CLIP checks of a render against its unbent one; for videos, the mean over k frames matched
+    by position."""
+    a, b = _sampled_frames(img, k), _sampled_frames(base, k)
+    rows = []
+    for i, f in enumerate(a):
+        g = b[min(i, len(b) - 1)]
+        key = f"{bid}#{i}" if len(a) > 1 else bid
+        rows.append({**dist.compare(f, g, base_key=key), **dist.subject(f, g, prompt, base_key=key)})
+    if len(rows) == 1:
+        return rows[0]
+    keys = {k for r in rows for k in r}
+    return {k: round(sum(r[k] for r in rows if k in r) / sum(1 for r in rows if k in r), 6) for k in keys}
+
+
 def measure_dir(root: Path | str, device: str | None = None, redo: bool = False, log_every: int = 50) -> dict:
     """Add the distances and the CLIP checks to every record of a run (or a knowledge-base working copy) that lacks
     them, and re-decide `degenerate` with the knowledge base's rule. Only measurements.json changes."""
@@ -218,8 +244,7 @@ def measure_dir(root: Path | str, device: str | None = None, redo: bool = False,
         if base is None or not img.exists():
             n["no_images"] += 1
             continue
-        a, b = Image.open(img).convert("RGB"), Image.open(base).convert("RGB")
-        new = {**dist.compare(a, b, base_key=bid), **dist.subject(a, b, rec["setup"].get("prompt"), base_key=bid)}
+        new = _pair_values(dist, img, base, rec["setup"].get("prompt"), bid)
         for k, v in new.items():
             vals[k] = kb.measure(k, v)
         flags = (vals.get("pixel_flags") or {}).get("value", [])

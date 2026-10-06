@@ -157,6 +157,33 @@
     "model_sampling": {
      "type": "string",
      "description": "ModelSamplingDiscrete mode, e.g. lcm"
+    },
+    "loader": {
+     "enum": [
+      "checkpoint",
+      "unet",
+      "gguf"
+     ],
+     "description": "how the model file in `checkpoint` is loaded: CheckpointLoaderSimple (default), UNETLoader or UnetLoaderGGUF (then text encoders and VAE are separate)"
+    },
+    "weight_dtype": {
+     "type": "string",
+     "description": "UNETLoader weight dtype, e.g. fp8_e4m3fn"
+    },
+    "clips": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "text encoder files for CLIPLoader (1), DualCLIPLoader (2) or TripleCLIPLoader (3)"
+    },
+    "clip_type": {
+     "type": "string",
+     "description": "the CLIP loaders' type, e.g. flux, sd3, flux2, wan"
+    },
+    "blocks": {
+     "type": "object",
+     "description": "transformer block stacks and their counts, e.g. {\"double_blocks\": 19, \"single_blocks\": 38}"
     }
    }
   },
@@ -229,6 +256,22 @@
       "null"
      ],
      "description": "video length in frames (video routes)"
+    },
+    "guidance": {
+     "type": "number",
+     "description": "FluxGuidance (distilled guidance), with cfg 1"
+    },
+    "shift": {
+     "type": "number",
+     "description": "ModelSamplingSD3 shift"
+    },
+    "latent": {
+     "type": "string",
+     "description": "the empty-latent node when not EmptyLatentImage, e.g. EmptySD3LatentImage"
+    },
+    "fps": {
+     "type": "number",
+     "description": "frames per second of a video output"
     }
    }
   },
@@ -312,6 +355,24 @@
      },
      "label": {
       "type": "string"
+     },
+     "node": {
+      "enum": [
+       "dit_block"
+      ],
+      "description": "dit_block: bent with DiT Block Bending (a whole transformer block's output stream); absent: Apply Bends from JSON on the path"
+     },
+     "stream": {
+      "enum": [
+       "img",
+       "txt",
+       "both"
+      ],
+      "description": "which token stream of the block DiT Block Bending bends"
+     },
+     "spatial": {
+      "type": "boolean",
+      "description": "image tokens laid out on their 2-D grid before bending (rotate and scale act on the picture)"
      }
     }
    }

@@ -280,7 +280,9 @@ def check_bends(bends: dict | list | str, arch: str = "") -> dict:
     bend: where in the model, what kind of nudge, when), `bends` (the same in parts, with `inside_safe_range` when
     arch has a safe-range table, and notes such as "this layer is not image-shaped"), `errors` (bends the node would
     refuse: fix or drop them with the user), `problems` (things the node would ignore), and `bends_json`, the tidied
-    document to pass to bend_run. Say the summary back to the user before rendering."""
+    document to pass to bend_run. A transformer bend (`"node": "dit_block"`, e.g. a Flux or SD3 recipe from the
+    knowledge base) is made by DiT Block Bending instead: it comes back in `dit_bends` with a `fragment`; render it
+    with bend_run(name, fragment=…). Say the summary back to the user before rendering."""
     import bendjson
     return bendjson.check(bends, arch)
 
@@ -289,8 +291,9 @@ def check_bends(bends: dict | list | str, arch: str = "") -> dict:
 def open_tray(link: str, arch: str = "") -> dict:
     """Read a tray link the user brings from the Model Bending Navigator (…/#tray=…): bends they picked, each tested
     on its own in the knowledge base. Checks each one like check_bends. Returns `bends`, one entry per bend with
-    `summary`, `bends_json` (a one-bend document for bend_run), `kb` and `link` (where it came from, to show the user
-    its before/after examples), `inside_safe_range`, `notes`, `errors` and `problems`. Say the summaries back, then
+    `summary`, `bends_json` (a one-bend document for bend_run; a transformer bend has a `fragment` for
+    bend_run(fragment=…) instead), `kb` and `link` (where it came from, to show the user its before/after examples),
+    `inside_safe_range`, `notes`, `errors` and `problems`. Say the summaries back, then
     try them one at a time on the user's own run (one bend_run per bend, each with its own name) and show them
     together on a board. Combine bends only if the user asks: no combination of them has been tested."""
     import bendjson
@@ -307,8 +310,8 @@ def tray_link(bends: list | dict | str) -> dict:
     r = bendjson.check(bends)
     if not r["ok"]:
         raise ValueError("; ".join(r["errors"]) or "there are no bends in it")
-    return {"link": kb.tray_link(r["document"]["bends"]), "count": len(r["document"]["bends"]),
-            "problems": r["problems"]}
+    kept = r["document"]["bends"] + [{k: v for k, v in b.items() if k != "fragment"} for b in r.get("dit_bends", [])]
+    return {"link": kb.tray_link(kept), "count": len(kept), "problems": r["problems"]}
 
 
 @tool

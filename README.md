@@ -178,23 +178,40 @@ grade, plus findings from the paper below.
 
 ### Contribute a run
 
-The knowledge base grows by **full runs**: one model, bent systematically across every part of its U-Net, with
-several operations and amounts. A full run shows how a model responds as a whole, which single pictures cannot.
-Most of the base is SD1.5 so far, so runs on other SD1.x fine-tunes, SD2 and SDXL are especially welcome.
+The knowledge base grows by **full runs**: one model, bent systematically across every part of it, with several
+operations and amounts. A full run shows how a model responds as a whole, which single pictures cannot. Most of the
+base is SD1.5 so far, so runs on other SD1.x fine-tunes, SD2, SDXL and transformer models are especially welcome.
 
 A run must cover:
 - **one model**
-- **all seven regions of the U-Net** (`in.hi`, `in.mid`, `in.lo`, `mid`, `out.lo`, `out.mid`, `out.hi`)
+- **every part of it**, following its architecture:
+  - **U-Net models** (SD 1.x, SD 2, SDXL): all seven regions of the U-Net (`in.hi`, `in.mid`, `in.lo`, `mid`,
+    `out.lo`, `out.mid`, `out.hi`)
+  - **transformer models** (Flux.1, Flux.2, SD3 / SD3.5, WAN video): each stack of transformer blocks in thirds
+    (early, middle, late), bent on the image stream with DiT Block Bending. Flux.1 has six regions (`double.*`,
+    `single.*`), SD3 three (`joint.*`), WAN three (`blocks.*`). Text-stream bends are welcome extras.
 - **at least three operations** with **at least three amounts each**
 
 One prompt and seed is enough. More seeds and prompts make the results count as replicated. The default plan is
-84 renders per prompt and seed, about 10–30 minutes on a mid-range GPU.
+84 renders per prompt and seed on a U-Net, about 10–30 minutes on a mid-range GPU; transformer models are slower
+and need more memory.
 
 You need ComfyUI with [ComfyUI-Model-Bending](https://github.com/abuzreq/ComfyUI-Model-Bending), Python with Pillow
 and NumPy, and a Hugging Face account. In the skill's `scripts/` folder:
 
 ```bash
 python kb_run.py init --arch sd15 --checkpoint your-model.safetensors --name "Your name" --out run.json
+```
+
+A transformer model is usually loaded on its own, with its text encoders and VAE. Then read its real block counts
+into the plan (Flux.2 variants and SD3.5 Large differ from the usual ones):
+
+```bash
+python kb_run.py init --arch flux --unet flux1-dev.safetensors --clip t5xxl_fp8_e4m3fn.safetensors --clip clip_l.safetensors --vae ae.safetensors --name "Your name" --out run.json
+```
+
+```bash
+python kb_run.py layers run.json
 ```
 
 Edit `run.json`:

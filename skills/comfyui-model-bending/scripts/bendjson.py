@@ -285,7 +285,7 @@ def check(given, arch: str = "") -> dict:
     if not isinstance(raw, list):
         errors.append("'bends' must be a list")
         raw = []
-    bends, described = [], []
+    bends, described, dit = [], [], []
     for i, b in enumerate(raw):
         if not isinstance(b, dict):
             errors.append(f"bend #{i} is not an object")
@@ -295,6 +295,29 @@ def check(given, arch: str = "") -> dict:
             errors.append(f"bend #{i} has no 'path' (the layer to bend, e.g. \"middle_block.1\")")
             continue
         where = f"bend #{i} ({path}): "
+        if b.get("node") == "dit_block":  # a transformer block, through DiT Block Bending: not Apply Bends from JSON
+            op, args = b.get("module_type") or b.get("op"), b.get("module_args") or b.get("args") or {}
+            dit_b = {"path": path, "op": op, "args": args, "stream": b.get("stream", "img"),
+                     "spatial": b.get("spatial", True), **({"t": b["t"]} if b.get("t") else {})}
+            frag = kb.dit_fragment(dit_b, family)
+            if not frag:
+                errors.append(f"{where}DiT Block Bending takes a whole transformer block (e.g. double_blocks.3) and "
+                              f"one of {', '.join(sorted(kb.MODULE_NODES))}")
+                continue
+            ref = kb.kb_ref(b["kb"])[0] if "kb" in b else None
+            dit.append({"path": path, "module_type": op, "module_args": args, "node": "dit_block",
+                        "stream": dit_b["stream"], "spatial": dit_b["spatial"], "fragment": frag,
+                        **({"t": b["t"]} if b.get("t") else {}), **({"kb": ref} if ref else {})})
+            described.append({"index": i, **({"label": b["label"]} if b.get("label") else {}), "path": path,
+                              "op": op, "args": args, "group": kb.dit_group(path, family) if family else None,
+                              "where": f"transformer block {path} ({dit_b['stream']} stream)",
+                              "how": _how({"module_type": op, "module_args": args}), "when": _when(b),
+                              "inside_safe_range": None, "fragment": frag,
+                              "notes": ["a transformer bend: render it with bend_run(name, fragment=<its fragment>) "
+                                        "on a transformer model (Flux, SD3, WAN)"],
+                              **({"kb": ref} if ref else {}),
+                              **({"link": kb.ref_link(ref)} if kb.ref_link(ref) else {})})
+            continue
         problems += [f"{where}unknown key {k!r}; the node ignores it" for k in b if k not in BEND_KEYS]
         if _number(b.get("angle")) and not b.get("module_type"):  # the oldest form: a rotation
             node = {"module_type": "rotate", "module_args": {"angle_degrees": b["angle"]}}
@@ -358,13 +381,14 @@ def check(given, arch: str = "") -> dict:
                         and a.get("attention") in ATTENTIONS]
     if usable_attention:
         tidy["attention_bends"] = usable_attention
-    if not bends and not usable_attention and not errors:
+    if not bends and not usable_attention and not dit and not errors:
         errors.append("there are no bends in it")
     lines = [(f"{d['label']}: " if d.get("label") else "") + f"{d['where']}, {d['how']}, {d['when']}"
              for d in described]
     if usable_attention:
         lines.append(f"{len(usable_attention)} bend(s) on a video model's attention maps (references/video.md)")
-    return {"ok": bool(bends or usable_attention), "document": tidy, "bends_json": json.dumps(tidy),
+    return {"ok": bool(bends or usable_attention or dit), "document": tidy, "bends_json": json.dumps(tidy),
+            **({"dit_bends": dit} if dit else {}),
             "bends": described, "errors": errors, "problems": problems,
             "summary": [ln[0].upper() + ln[1:] for ln in lines],
             **({"arch": arch} if arch else {"note": "pass arch (sd15, sdxl, …) to place each bend in the model and "
@@ -384,7 +408,7 @@ def open_tray(link: str, arch: str = "") -> dict:
         r = check({"bends": [b]}, arch)
         d = (r["bends"] or [{}])[0]
         items.append({"index": i, "ok": r["ok"], "summary": (r["summary"] or [""])[0], "bends_json": r["bends_json"],
-                      **{k: d[k] for k in ("kb", "link") if k in d},
+                      **{k: d[k] for k in ("kb", "link", "fragment") if k in d},
                       "inside_safe_range": d.get("inside_safe_range"), "notes": d.get("notes", []),
                       "errors": [e.replace("bend #0", f"bend #{i}") for e in r["errors"]],
                       "problems": [p.replace("bend #0", f"bend #{i}") for p in r["problems"]]})

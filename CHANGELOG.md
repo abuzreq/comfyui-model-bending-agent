@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **Full runs on transformer models.** `kb_run.py` takes Flux.1, Flux.2, SD3 / SD3.5 and WAN (video) as well as
+  U-Net models. "Every part of the model" follows its architecture: the seven U-Net regions, or each stack of
+  transformer blocks in thirds (Flux.1: `double.early` … `single.late`, six regions; SD3: `joint.*`; WAN:
+  `blocks.*`), bent with DiT Block Bending on the image stream (its tokens laid out on their grid). Text-stream bends
+  are optional extras.
+  - `init` takes `--unet` / `--gguf`, repeated `--clip` and `--clip-type` for models loaded on their own, with
+    each family's sampling defaults (Flux: cfg 1 and guidance; SD3 and WAN: shift).
+  - `layers run.json` reads the model's real block stacks into the plan, so Flux.2 variants and SD3.5 Large get
+    their own regions.
+  - `render` checks that this ComfyUI has every node first. WAN runs are saved as animated lossless WebPs with the
+    workflow embedded, and `measure` averages over frames.
+- **The knowledge base knows transformer bends.** Records gain `node: dit_block`, `stream` and `spatial` per bend,
+  the model's loader, text encoders and block counts, and `guidance`, `shift`, `latent`, `frames` and `fps` in the
+  setup. Published ids do not change: these facts join a record's id only when it has them (checked on all 17,454
+  records). Records of transformer runs carry workflows that run as they are (UNETLoader, the CLIP loaders,
+  FluxGuidance, DiT Block Bending). The index's `meta.json` names each family's architecture
+  (`architectures`: a U-Net, or block stacks banded into thirds), for the navigator's diagram.
+- **Agents can use transformer recipes.** A transformer recipe from `find_recipes`, `check_bends` or a tray link
+  comes with a `fragment` for `bend_run`.
+
 ## 0.4.0
 
 The first minutes of a session, redesigned after a workshop with artists: people do not all arrive with a goal.
