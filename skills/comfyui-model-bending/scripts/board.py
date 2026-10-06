@@ -61,9 +61,12 @@ def create(root: Path, *, title: str, question: str, candidates: list[dict], ori
     for i, c in enumerate(candidates):
         url = str(c.get("image_url") or "")
         _check_url(url)
-        cands.append({"label": str(c.get("label") or chr(65 + i))[:24], "image_url": url,
-                      "caption": str(c.get("caption") or "")[:400], "recommended": bool(c.get("recommended")),
-                      "details": str(c.get("details") or "")[:300]})
+        cand = {"label": str(c.get("label") or chr(65 + i))[:24], "image_url": url,
+                "caption": str(c.get("caption") or "")[:400], "recommended": bool(c.get("recommended")),
+                "details": str(c.get("details") or "")[:400]}
+        if isinstance(c.get("run"), dict):  # the run behind the picture (server-side only, never shown)
+            cand["run"] = {k: c["run"][k] for k in ("prompt_id", "bent", "bends") if k in c["run"]}
+        cands.append(cand)
     if len({c["label"] for c in cands}) != len(cands):
         raise BoardError("version labels must be unique")
     if original_url:

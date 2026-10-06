@@ -167,6 +167,93 @@ def test_only_comfyui_images_can_be_shown(comfy, tmp_path):
     assert "ComfyUI /api/view URLs" in text(run(comfy, tmp_path, lambda s: body(s), APPS)[0])
 
 
+def bends_doc(*bends) -> str:
+    return json.dumps({"bends": list(bends)})
+
+
+HISTORY = {  # c1: the unbent run; c2: a bend the safe ranges pulled back, from a knowledge-base cell; c3: another bend
+    "p-base": {"prompt": [1, "p-base", {"9": {"class_type": "SaveImage", "inputs": {}}}, {}, []],
+               "outputs": {"9": {"images": [{"filename": "c1.png", "subfolder": "", "type": "output"}]}},
+               "status": {"status_str": "success", "completed": True}},
+    "p-b": {"prompt": [2, "p-b", {"13": {"class_type": "ApplyBendsFromJSON", "inputs": {"bends_json": bends_doc(
+        {"path": "output_blocks.7", "module_type": "add_noise", "module_args": {"noise_std": 3.0}, "label": "B",
+         "kb": {"cell": "sd1|out.hi|resblock|ResBlock|add_noise|high|all|img2img"}})}}}, {}, []],
+        "outputs": {"9": {"images": [{"filename": "c2.png", "subfolder": "", "type": "output"}]},
+                    "14": {"text": [json.dumps({"clamp": "safe", "clamped": [
+                        {"path": "output_blocks.7", "op": "add_noise", "arg": "noise_std", "requested": 3.0,
+                         "applied": 1.5}]})]}},
+        "status": {"status_str": "success", "completed": True}},
+    "p-c": {"prompt": [3, "p-c", {"13": {"class_type": "ApplyBendsFromJSON", "inputs": {"bends_json": bends_doc(
+        {"path": "middle_block.1", "module_type": "rotate", "module_args": {"angle_degrees": 30}})}}}, {}, []],
+        "outputs": {"9": {"images": [{"filename": "c3.png", "subfolder": "", "type": "output"}]}},
+        "status": {"status_str": "success", "completed": True}},
+}
+
+
+@pytest.fixture()
+def comfy_runs():
+    """Like `comfy`, plus /api/history with the runs that made c1-c3."""
+    pngs = {f"c{i}.png": noise_png(i, 64) for i in range(4)}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            from urllib.parse import parse_qs, urlsplit
+            u = urlsplit(self.path)
+            if u.path == "/api/history":
+                body, kind = json.dumps(HISTORY).encode(), "application/json"
+            elif u.path == "/api/view" and parse_qs(u.query).get("filename", [""])[0] in pngs:
+                body, kind = pngs[parse_qs(u.query)["filename"][0]], "image/png"
+            else:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", kind)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+
+
+def test_board_shows_applied_amounts_and_asks_for_logs_and_links(comfy_runs, tmp_path):
+    base = comfy_runs
+    cands = [{"label": "Unbent", "image_url": view(base, 1), "caption": "no bend"},
+             {"label": "B", "image_url": view(base, 2), "caption": "grainy", "details": "out.hi add_noise 3.0"},
+             {"label": "C", "image_url": view(base, 3), "caption": "rotated"}]
+
+    async def body(s):
+        shown = await s.call_tool("show_board", {"title": "Round 2", "question": "Which?", "candidates": cands,
+                                                  "session": "starry-1006", "round": 2})
+        bid = shown.structured_content["board"]["board_id"]
+        await s.call_tool("submit_board", {"board_id": bid, "feedback": {"picks": ["B"], "votes": {"C": "down"},
+                                                                         "direction": "more grain"}})
+        return shown, await s.call_tool("board_feedback", {"board_id": bid, "max_wait": 0})
+
+    shown, got = run(base, tmp_path, body, APPS)
+    b = {c["label"]: c for c in shown.structured_content["board"]["candidates"]}
+    assert b["B"]["details"].startswith("Applied after the safe-range clamp: add_noise noise_std 1.5 (asked 3.0)")
+    assert "out.hi add_noise 3.0" in b["B"]["details"] and "say the applied one" in text(shown)
+    assert "Applied" not in b["C"]["details"] and "prompt_id" not in str(b)  # the run stays on the server
+    fb = data(got)
+    assert fb["log_round"]["todo"] == [{"label": "B", "prompt_id": "p-b", "verdict": "kept"},
+                                       {"label": "C", "prompt_id": "p-c", "verdict": "rejected"}]
+    assert fb["log_round"]["baseline_prompt_id"] == "p-base" and fb["log_round"]["session"] == "starry-1006"
+    (liked,) = fb["liked"]["versions"]
+    assert liked["label"] == "B" and liked["kb_links"] == [
+        "https://abuzreq-model-bending-navigator.static.hf.space/?cell=sd1%7Cout.hi%7Cresblock%7CResBlock%7Cadd_noise"
+        "%7Chigh%7Call%7Cimg2img"]
+    assert fb["liked"]["tray_link"].startswith("https://abuzreq-model-bending-navigator.static.hf.space/#tray=")
+    sys.path.insert(0, str(SCRIPTS))
+    import kb
+    (bend,) = kb.read_tray(fb["liked"]["tray_link"])
+    assert bend["path"] == "output_blocks.7" and bend["kb"]["cell"].startswith("sd1|out.hi")
+
+
 def test_bundle_export_becomes_a_global():
     sys.path.insert(0, str(SCRIPTS))
     import board

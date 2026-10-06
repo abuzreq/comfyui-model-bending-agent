@@ -108,6 +108,30 @@ def test_animation_stays_here_when_comfyui_refuses_it(comfy, tmp_path):
     assert out["where"].startswith(f"Saved on this computer at {video}")
 
 
+def test_anim_json_names_where_the_video_ended_up(comfy, tmp_path, monkeypatch):
+    video = tmp_path / animate.video_name("d3 on d25", "mp4")
+    video.write_bytes(b"\x00\x00\x00\x18ftypmp42 a video")
+    frames = tmp_path / video.stem / "frames"
+    frames.mkdir(parents=True)
+    m = {"video": str(video), "frames_dir": str(frames), "rendered_frames": 2}
+    done = animate.finish(m)
+    on_disk = json.loads((frames.parent / "anim.json").read_text(encoding="utf-8"))
+    assert done["view_url"] and on_disk["file"] == f"agent_bending/{video.name}" and on_disk["video"] is None
+    assert "where" not in on_disk and done["where"].startswith("Saved in ComfyUI's output folder")
+
+
+def test_animation_work_folder_is_dated_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(animate, "render", lambda api, ui, p, work, progress: [])
+    monkeypatch.setattr(animate, "encode", lambda frames, order, out, fps: out)
+    monkeypatch.setattr(animate, "filmstrip", lambda frames: b"")
+    monkeypatch.setattr(animate, "plan", lambda api, tracks, **kw: {"order": [], "fps": 12, "duration_s": 0,
+                                                                     "output_node": "9", "tracks": [], "values": []})
+    m = animate.animate({}, None, [], tmp_path / animate.video_name("loop", "mp4"))
+    assert re.fullmatch(r"loop_animation_\d{8}-\d{6}", Path(m["frames_dir"]).parent.name)
+    own = animate.animate({}, None, [], tmp_path / "mine.gif")  # a file name of the user's own still gets a date
+    assert re.fullmatch(r"mine_\d{8}-\d{6}", Path(own["frames_dir"]).parent.name)
+
+
 def test_extension_asks_for_no_folder():
     m = json.loads((ROOT / "packaging" / "mcpb" / "manifest.json").read_text(encoding="utf-8"))
     assert set(m["user_config"]) == {"comfyui_url", "picture_dir", "bridge_token"}

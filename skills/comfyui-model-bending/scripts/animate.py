@@ -444,7 +444,8 @@ def animate(api: dict, ui: dict | None, tracks: list[dict], out: Path, progress=
     p = plan(api, tracks, **plan_kw)
     out = Path(out)
     work = out.with_suffix("")
-    work = work.parent / f"{work.name}_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    if not _STAMP.search(work.name):  # video_name already dates the file; a name of the user's own gets the date here
+        work = work.parent / f"{work.name}_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     work.mkdir(parents=True, exist_ok=True)
     frames = render(api, ui, p, work, progress)
     encode(frames, p["order"], out, p["fps"])
@@ -456,6 +457,9 @@ def animate(api: dict, ui: dict | None, tracks: list[dict], out: Path, progress=
                 "created": datetime.now().isoformat(timespec="seconds")}
     (work / "anim.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     return manifest
+
+
+_STAMP = re.compile(r"_\d{8}-\d{6}$")
 
 
 def video_name(name: str, fmt: str) -> str:
@@ -480,6 +484,15 @@ def deliver(video: Path) -> dict:
     return {**saved, "video": str(video),
             "where": where.replace("ComfyUI's output folder", "the output folder of the ComfyUI on the other machine",
                                    1) + f". A copy is on this computer at {video}"}
+
+
+def finish(manifest: dict) -> dict:
+    """Deliver the video (deliver) and rewrite anim.json so it names where the video ended up, not where it was
+    encoded. Returns the manifest with deliver's `where`, `file` and `view_url`."""
+    done = {**manifest, **deliver(Path(manifest["video"]))}
+    on_disk = {k: v for k, v in done.items() if k != "where"}
+    (Path(manifest["frames_dir"]).parent / "anim.json").write_text(json.dumps(on_disk, indent=1), encoding="utf-8")
+    return done
 
 
 def build_tracks(api: dict, bends: list[str], inputs: list[str]) -> list[dict]:
@@ -525,7 +538,7 @@ def main(argv=None):
             out = cc.work_dir() / "animations" / video_name(a.name, fmt)
             out.parent.mkdir(parents=True, exist_ok=True)
         m = animate(api, ui, tracks, out, progress=lambda d, n: print(f"\rframe {d}/{n}", end="", flush=True), **kw)
-        where = f"wrote {m['video']}" if a.out else deliver(out)["where"]
+        where = f"wrote {m['video']}" if a.out else finish(m)["where"]
         print(f"\n{where}\n({m['rendered_frames']} rendered frames, {m['duration_s']} s; frames and anim.json in "
               f"{Path(m['frames_dir']).parent})")
     except (AnimationError, cc.CanvasError, OSError, ValueError) as e:

@@ -158,6 +158,19 @@ def log_round(prompt_id: str, session: str, verdict: str = "", words: str = "", 
             **({"unknown_tags_dropped": skipped} if skipped else {})}
 
 
+def logged_prompt_ids() -> set[str]:
+    """The ComfyUI runs already recorded in the user's own knowledge base."""
+    ids = set()
+    for p in OWN.rglob("record.json"):
+        try:
+            pid = (json.loads(p.read_text(encoding="utf-8")).get("provenance") or {}).get("prompt_id")
+        except (OSError, json.JSONDecodeError):
+            continue
+        if pid:
+            ids.add(pid)
+    return ids
+
+
 # --------------------------------------------------------------------------- sources
 def _session_file(session: str) -> Path:
     """The file for a session id; ids are letters, digits, '-', '_' and '.', so they can never leave the folder."""

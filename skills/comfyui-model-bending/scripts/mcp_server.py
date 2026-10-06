@@ -622,7 +622,7 @@ def start_animation(name: str = "", prompt_id: str = "", last_run: bool = False,
     def work():
         try:
             m = animate.animate(api, ui, tracks, out, progress=lambda d, n: state.update(done=d), **kw)
-            state["manifest"] = {**m, **animate.deliver(Path(m["video"]))}
+            state["manifest"] = animate.finish(m)
             state["status"] = "done"
         except Exception as e:  # noqa: BLE001 - reported through animation_status
             state.update(status="failed", error=f"{type(e).__name__}: {e}")
@@ -664,14 +664,18 @@ def show_board(ctx: Context, title: str, question: str, candidates: list[dict], 
     ask: which extras to show, from votes, keep_change, strength, direction (default all). Their answer arrives as
     their next chat message; read the exact choice with board_feedback. Apps that cannot show boards get a labelled
     contact sheet instead: then ask in chat."""
+    candidates, clamped = _with_runs(candidates)
     b = boards.create(BOARDS, title=title, question=question, candidates=candidates, original_url=original_url,
                       session=session, round=round, ask=ask)
     labels = ", ".join(c["label"] for c in b["candidates"])
+    fix = (f" Some amounts were pulled back into the safe ranges, so the board's details now show what was applied: "
+           f"{' | '.join(clamped)}. If a caption or your message names the requested amount, say the applied one."
+           if clamped else "")
     if client_supports_apps(ctx):
         text = (f"The board was sent to the chat ({b['board_id']}, versions {labels}). Wait: the artist's answer "
                 f"arrives as their next message. Then read the exact choice with "
                 f"board_feedback(board_id='{b['board_id']}'). If it reports not_displayed (some apps cannot show "
-                f"boards), show the versions with view_images and ask in chat. Do not ask them to open ComfyUI.")
+                f"boards), show the versions with view_images and ask in chat. Do not ask them to open ComfyUI.{fix}")
         # some hosts hand the model the structured part instead of the text, so the note goes in both
         return CallToolResult(content=[TextContent(type="text", text=text)],
                               structured_content={"note_for_claude": text, "board": boards.view(b)})
@@ -683,8 +687,75 @@ def show_board(ctx: Context, title: str, question: str, candidates: list[dict], 
     metrics.sheet(str(out), srcs, names, max(1, min(4, len(srcs))), 320, title or None)
     text = (f"This app cannot show the in-chat board, so here are the versions as one contact sheet. Show it to the "
             f"artist with a one-line plain caption per version, and ask in chat: pick one or more of {labels}, "
-            f'"none", or what to change.')
+            f'"none", or what to change.{fix}')
     return [_shown(out), text]
+
+
+def _with_runs(candidates: list[dict]) -> tuple[list[dict], list[str]]:
+    """Each version gets the run behind its picture (for logging and links after the artist answers). Amounts the
+    safe-range clamp pulled back go at the front of its details, so the board shows what was applied, not what was
+    asked. Returns (candidates, one line per clamped version)."""
+    try:
+        runs = cc.runs_for_urls([str(c.get("image_url") or "") for c in candidates])
+    except (cc.CanvasError, OSError):
+        return candidates, []
+    out, clamped = [], []
+    for c in candidates:
+        c = dict(c)
+        hit = runs.get(str(c.get("image_url") or ""))
+        if hit:
+            pid, entry = hit
+            c["run"] = {"prompt_id": pid, "bent": cc.is_bent(entry), "bends": cc.run_bends(entry)}
+            pulled = [x for r in cc.bend_reports(entry) for x in r.get("clamped") or []]
+            if pulled:
+                said = "; ".join(f"{x.get('op')} {x.get('arg')} {x.get('applied')} (asked {x.get('requested')}) on "
+                                 f"{x.get('path')}" for x in pulled)
+                c["details"] = f"Applied after the safe-range clamp: {said}. {c.get('details') or ''}".strip()
+                clamped.append(f"{c.get('label')}: {said}")
+        out.append(c)
+    return out, clamped
+
+
+def _after_answer(board_id: str, fb: dict) -> dict:
+    """What to do with an answer: the bent versions not yet in the user's own knowledge base (log_round), and, for
+    the versions they liked, the knowledge-base pages their bends came from plus a tray link that keeps the bends."""
+    import bendjson
+    import kb
+    import kb_local
+    b = boards.load(BOARDS, board_id)
+    liked = set(fb.get("picks") or []) | {k for k, v in (fb.get("votes") or {}).items() if v == "up"}
+    down = {k for k, v in (fb.get("votes") or {}).items() if v == "down"}
+    runs = [(c["label"], c["run"]) for c in b["candidates"] if c.get("run")]
+    base = next((r["prompt_id"] for _, r in runs if not r.get("bent")), "")
+    logged = kb_local.logged_prompt_ids()
+    todo, kept, kept_bends = [], [], []
+    for label, r in runs:
+        if not r.get("bent"):
+            continue
+        verdict = "kept" if label in liked else "rejected" if label in down else "not picked"
+        if r["prompt_id"] not in logged:
+            todo.append({"label": label, "prompt_id": r["prompt_id"], "verdict": verdict})
+        if label in liked:
+            links = sorted({link for x in r.get("bends") or [] if isinstance(x.get("kb"), dict)
+                            for link in [kb.ref_link(kb.kb_ref(x["kb"])[0])] if link})
+            kept.append({"label": label, "kb_links": links})
+            kept_bends += r.get("bends") or []
+    extra = {}
+    if todo:
+        extra["log_round"] = {
+            "todo": todo, "session": b.get("session") or "", "baseline_prompt_id": base,
+            "how": "Before the next round, log each of these with log_round(prompt_id, session, verdict, words=<the "
+                   "artist's note, if it is about that version>, baseline_prompt_id) (SKILL.md §2 step 8). It stays "
+                   "on their computer."}
+    if kept:
+        tray = bendjson.check(kept_bends) if kept_bends else {"ok": False}
+        extra["liked"] = {
+            "versions": kept, **({"tray_link": kb.tray_link(tray["document"]["bends"])} if tray.get("ok") else {}),
+            "how": "Give the artist these links in your reply: each kb_link opens the knowledge-base page a liked bend "
+                   "came from (its before/after examples and risks); tray_link keeps the bends of the versions they "
+                   "liked, to reopen later in the Navigator or bring back to a session. Bends without a `kb` source "
+                   "(not from find_recipes) have no page."}
+    return extra
 
 
 # Visible to the model as well as to the board: hosts that relay tools to a local extension (the Claude desktop Chat
@@ -713,8 +784,16 @@ def board_feedback(board_id: str, since_revision: int = 0, max_wait: float = 50)
     """The artist's answer on an in-chat board (waits up to max_wait s): picks (one or several labels), none, votes
     (up/down per label), keep and change (composition, subject, palette, lighting, texture, style), push (-1 pull back,
     0 about the same, +1 push further), direction (their note), revision (it goes up if they send a new answer; pass
-    the last one as since_revision to wait for a change)."""
-    return boards.wait_feedback(BOARDS, board_id, min(max_wait, MAX_WAIT_S), since_revision)
+    the last one as since_revision to wait for a change). With an answer: `log_round` lists the bent versions not yet
+    in the user's own knowledge base (log them before the next round), and `liked` gives the knowledge-base pages of
+    the bends they liked and a tray link that keeps them: pass those links on."""
+    fb = boards.wait_feedback(BOARDS, board_id, min(max_wait, MAX_WAIT_S), since_revision)
+    if fb.get("status") == "answered":
+        try:
+            fb.update(_after_answer(board_id, fb))
+        except (cc.CanvasError, OSError, ValueError) as e:
+            fb["after_answer_error"] = f"{type(e).__name__}: {e}"
+    return fb
 
 
 # ------------------------------------------------------------------------------------------------ picture box

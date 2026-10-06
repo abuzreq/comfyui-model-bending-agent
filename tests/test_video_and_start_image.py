@@ -246,7 +246,9 @@ def test_start_image_turns_a_text_to_image_spec_into_image_to_image():
     assert n["start_image"] == {"class_type": "LoadImage", "title": "Starting picture",
                                 "inputs": {"image": "agent_bending/pic_1234abcd.png"}, "group": "base"}
     assert n["lat"]["class_type"] == "VAEEncode" and n["lat"]["inputs"] == {"pixels": ["lat_fit", 0], "vae": ["vae", 0]}
-    assert n["lat_fit"]["inputs"]["width"] == 512 and n["lat_fit"]["inputs"]["image"] == ["start_image", 0]
+    assert n["lat_fit"]["class_type"] == "ImageScaleToTotalPixels"  # the picture keeps its shape: no crop
+    assert n["lat_fit"]["inputs"]["megapixels"] == 0.25 and n["lat_fit"]["inputs"]["image"] == ["start_image", 0]
+    assert any("keeps its shape" in x for x in notes)
     assert n["latP"]["class_type"] == "RepeatLatentBatch" and n["latP"]["inputs"]["amount"] == 4  # the 4-seed lane
     assert {n[k]["inputs"]["denoise"] for k in ("ks0", "ksA", "ksB", "ksC", "ksP")} == {0.6}
     assert new["meta"]["start_image"] == "agent_bending/pic_1234abcd.png" and new["meta"]["denoise"] == 0.6

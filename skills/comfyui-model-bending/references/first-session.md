@@ -48,7 +48,7 @@ rest.
 |---|---|---|---|---|---|
 | prompt or picture | from their message | when they choose what to try | theirs if given, otherwise a default prompt: say which, and that they can give their own | their run has it | their last run has it; with no run, theirs if given, otherwise the default prompt: say which |
 | model | named, or pick and say which | pick and say which | pick and say which | their run has it | their last run has it; with no run, the model the bend was made for |
-| knowledge source (§1d) | before the first sweep only if they asked for recipes or what others found; otherwise with the first result | with the first result | with the first result | with the first result | with the first result |
+| knowledge source (§1d) | in your first message, recommended when `kb_status` covers their model; wait for the answer only if they asked for recipes or what others found | when they choose what to try | with the first result | in your first message | in your first message |
 | depth and autonomy (§1d) | with the first result | with the first result | with the first result | with the first result | with the first result |
 | render budget, seed policy | stated, not asked | — | stated | stated | stated |
 
@@ -187,6 +187,6 @@ At the end of the message that shows the first result, and not before, offer the
 > I'll keep showing you three versions and stopping for your pick. I can also dig into *why* something happens, or
 > run a few rounds on my own and report back: just say so.
 
-If the knowledge-source question has not been asked, add it here, once (§1d). If they do not answer it, carry on
-with the built-in recipes and do not call `find_recipes`. Then continue with the core loop (§2) in the mode they
-chose.
+If the knowledge-source question has somehow not been asked yet, add it here, once (§1d); it belongs in the first
+message. If they do not answer it, carry on with the built-in recipes and do not call `find_recipes`. Then
+continue with the core loop (§2) in the mode they chose.

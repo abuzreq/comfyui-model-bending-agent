@@ -202,9 +202,20 @@ denoise table and what an upload returns. In short:
   shown, offer the two other ways together: a pasted file path (`upload_image`), or a Load Image box. One of your
   earlier versions needs no box: `upload_image` its URL.
 - Upload only a path the user gave you in the chat.
+- **Look at it and describe it before the first render.** Write the prompt from what is in the picture (subject,
+  layout, colours, medium), not from their goal alone: a generic prompt pulls the picture toward something else.
 - Build from it (`build_workflow(spec, name, start_image, denoise)`), and ask how closely to follow it, in their
-  terms: that sets `denoise` (default 0.6).
+  terms: that sets `denoise`. **When they want their picture bent, start low (0.35–0.5)**, lower still on distilled
+  models (LCM, Turbo). Render the unbent version first and check that it still looks like their picture; if it does
+  not, lower denoise before any bend. A bend compared with an unbent version that already lost their picture tells
+  them nothing.
+- The picture keeps its own shape: it is scaled to the model's size, never cropped.
 - Say what the bend can still reach: at denoise ≤ 0.7 bends restyle the picture but cannot re-compose it (§5).
+- **Unsampling** (run the picture backwards to noise, then forward with the bends) keeps even more of it. Use the
+  same model setup and sampler as the other versions, LCM sampling included, or the comparison measures the sampler
+  instead of the bend. Show the unbent round trip next to the bent ones (`references/starting-picture.md`).
+- When the artist suggests a technique (unsampling, a lower denoise, a caption), try it in the next round, or say in
+  one line why not.
 - Show their picture as the **original** on boards and sheets, and describe each version against it.
 
 ### 1d. How to work: two dials, and the knowledge source
@@ -235,8 +246,11 @@ continue the same session log.
 
 **The knowledge source: where to start from**, asked in their terms: "Should I start from what others have found
 with this model (the shared bend knowledge base), from your own earlier sessions, both, or explore fresh?"
-- When to ask: if their first message asks for recipes or for what others found, before that sweep. Otherwise
-  once, together with the offer after the first round.
+- **When to ask: at the start**, in your first message, not after the first round. Check `kb_status()` first:
+  when the shared base covers their kind of model (its `families`; SD1.x models such as SD1.5, Realistic Vision
+  and LCM Dreamshaper are well covered), recommend it in one clause ("it has tested bends for this model; I'd
+  start from those"). If they asked for recipes, wait for the answer before the first sweep. Otherwise do not hold
+  the first render for it: start with the built-in recipes and use their choice from the next round.
 - Until they have chosen, use only the built-in recipes of §5 and §6, and do not call `find_recipes`.
 - Store the answer with `kb_sources(session, community | mine | both | none)`. Never choose for them. If they say
   "none", do not call `find_recipes` this session. They can change it at any time ("stop using the knowledge
@@ -295,7 +309,10 @@ Round N
    comes back with the run (tool: `texts` in `run_workflow` / `get_run`; script: printed by `queue --wait`, and by
    `last-run`). It shows what was actually bent: `resolved` layers with t,
    steps and blend; `expanded` containers; `skipped` paths; `clamped` amounts; `warnings`. A bend that resolved to
-   nothing is a spec bug, not "no effect".
+   nothing is a spec bug, not "no effect". **Say the applied amount, never the requested one**: with `clamp: safe`
+   an amount past the safe range of that layer is pulled back, and the picture shows the applied one. The ranges
+   differ per layer (`get_safe_ranges`: `add_noise` goes to 1.5 by default but to 3.0 on the output blocks).
+   `show_board` puts clamped amounts into the board's details itself.
 5. **Measure**: `metrics.py compare baseline.png cand*.png` (tool: `compare_images`).
    - `noop` (MAE < 0.5) despite a resolved bend: the window missed every executed step (check with
      `timesteps.py`), or the op is neutral at that amount.
@@ -311,7 +328,9 @@ Round N
 8. **Log** the round in `bending_sessions/<session>/log.md`: hypothesis, `resolved_json`, seed, model, sampler,
    metrics, verdict and the user's choice. This is the provenance record for the artist's practice and research.
    Also record each judged candidate in the user's own knowledge base: `log_round(prompt_id, session, …)`, or the
-   script `kb_local.py log`.
+   script `kb_local.py log`. **Every round, before the next one**: `board_feedback` lists the bent versions still
+   to log (`log_round.todo`, with each one's prompt id, the verdict their answer implies and the baseline). Logging
+   does not depend on the knowledge-source choice: it only keeps their own record.
    - Pass the baseline's prompt id, so the change is measured.
    - The user's verdict and their own words go in `verdict` and `words`: these are human interpretations.
    - Your one-line caption, the change, and `effect_tags` (from `data/kb/vocab/effects.json`) are AI
@@ -519,6 +538,11 @@ WAN samples with shift 8, so most of its steps sit in the structure window (10 s
     early steps cause the blur."
   - A result marked "tested on other sd1 checkpoints" is a lead, not a promise.
   - Pass on its `risks.summary` and failure note in plain words when it is not "no failures seen".
+  - **Keep each recipe's `kb` key in the bend you render**, also when you combine it with other bends. It is how a
+    liked version leads back to its knowledge-base page.
+  - **Give links.** Name the page (`link`) of every recipe you try, in the message that shows the round. When they
+    pick or up-vote a version, `board_feedback` returns `liked`: give them its `kb_links` (the pages its bends came
+    from) and its `tray_link` (the bends they liked, to keep or reopen in the Navigator).
   - Details are in `references/knowledge-base.md`.
 - Otherwise, or when nothing matches, start from the known recipes that match the goal:
   - new composition: rotate on mid, in.lo or out.lo, t 1→0.7

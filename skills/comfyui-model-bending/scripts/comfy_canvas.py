@@ -65,9 +65,9 @@ A list value [node_key, output_index] is a link; anything else is a widget value
 Note / MarkdownNote are canvas-only and are left out of the API export.
 
 Starting picture: `build --start-image NAME` (tool: build_workflow(start_image=NAME)) rewrites a text-to-image spec
-into image-to-image. Each empty image latent becomes LoadImage -> ImageScale (to the latent's size, centre crop) ->
-VAEEncode (with the VAE the spec decodes with), repeated for batch_size > 1, and every KSampler that starts from it
-gets denoise (default 0.6 where it was 1.0). A spec that already has a LoadImage keyed "start_image" (image-to-video
+into image-to-image. Each empty image latent becomes LoadImage -> ImageScaleToTotalPixels (the latent's pixel count,
+the picture's own shape: nothing is cropped) -> VAEEncode (with the VAE the spec decodes with), repeated for
+batch_size > 1, and every KSampler that starts from it gets denoise (default 0.6 where it was 1.0). A spec that already has a LoadImage keyed "start_image" (image-to-video
 presets) just gets its picture set. Empty video latents are refused: image-to-video needs an image-to-video model.
 """
 
@@ -411,7 +411,7 @@ def build(spec: dict) -> tuple[dict, dict]:
                 raise CanvasError(f"node {k!r} links to unknown node {d!r}")
     depth, order = _depths(keys, deps)
 
-    ui_nodes, links, api = {}, [], {}
+    ui_nodes, links, api, defaults = {}, [], {}, {}
     for k in keys:
         n = nodes_spec[k]
         ct, inputs = n["class_type"], dict(n.get("inputs") or {})
@@ -427,6 +427,7 @@ def build(spec: dict) -> tuple[dict, dict]:
         else:
             info = oi[ct]
             socket_inputs, widget_inputs = [], []
+            required = set(((info.get("input") or {}).get("required") or {}))
             for name, typ, opts in _spec_inputs(info):
                 if typ == AUTOGROW:
                     slots = _autogrow_slots(name, opts)
@@ -444,6 +445,10 @@ def build(spec: dict) -> tuple[dict, dict]:
                                           "link": ("PENDING", val) if _is_link(val) else None})
                     if _is_link(val):
                         val = None
+                    elif val is None and name in required and "default" in opts:
+                        # a required widget the spec leaves out (e.g. one a newer ComfyUI added) runs at its
+                        # default, as it would from the canvas: the API export needs it written out
+                        defaults.setdefault(k, {})[name] = opts["default"]
                     node["widgets_values"].append(_default(typ, opts) if val is None else val)
                     if opts.get("control_after_generate"):
                         node["widgets_values"].append("fixed")
@@ -492,6 +497,8 @@ def build(spec: dict) -> tuple[dict, dict]:
         if str(ids[k]) in api:
             for name, val in (nodes_spec[k].get("inputs") or {}).items():
                 api[str(ids[k])]["inputs"][name] = [str(ids[val[0]]), val[1]] if _is_link(val) else val
+            for name, val in defaults.get(k, {}).items():
+                api[str(ids[k])]["inputs"].setdefault(name, val)
 
     groups = _layout(spec, keys, ui_nodes, depth)
     ui = {"last_node_id": len(keys), "last_link_id": len(links), "nodes": list(ui_nodes.values()),
@@ -727,6 +734,73 @@ def describe_run(pid: str, e: dict) -> dict:
                        for err in errors]}
 
 
+def _output_key(d: dict) -> tuple[str, str, str]:
+    return str(d.get("filename") or ""), str(d.get("subfolder") or ""), str(d.get("type") or "output")
+
+
+def runs_for_urls(urls: list[str], max_items: int = 300) -> dict[str, tuple[str, dict]]:
+    """The finished run behind each /api/view URL, from ComfyUI's history: {url: (prompt_id, entry)}. URLs no run in
+    the last max_items made (an uploaded picture, an old run) are left out."""
+    want = {}
+    for u in urls:
+        q = urllib.parse.parse_qs(urllib.parse.urlsplit(u or "").query)
+        if q.get("filename"):
+            want[_output_key({k: (q.get(k) or [""])[0] for k in ("filename", "subfolder", "type")})] = u
+    if not want:
+        return {}
+    found: dict[str, tuple[str, dict]] = {}
+    for pid, e in _req("GET", f"/api/history?max_items={max_items}").items():
+        for out in (e.get("outputs") or {}).values():
+            for im in (out.get("images") or []) + (out.get("gifs") or []) + (out.get("videos") or []):
+                u = want.get(_output_key(im))
+                if u and u not in found:
+                    found[u] = (pid, e)
+    return found
+
+
+def bend_reports(entry: dict) -> list[dict]:
+    """The bend reports a run showed (Apply Bends from JSON's `report` output in a PreviewAny or report sink)."""
+    reports = []
+    for out in (entry.get("outputs") or {}).values():
+        for t in out.get("text") or []:
+            try:
+                d = json.loads(t)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(d, dict) and "bends" not in d and ({"clamped", "warnings", "clamp", "resolved"} & set(d)):
+                reports.append(d)
+    return reports
+
+
+def run_bends(entry: dict) -> list[dict]:
+    """The bends a run asked for, as written in its Apply Bends from JSON boxes (with their labels and kb sources)."""
+    bends = []
+    for node in entry["prompt"][2].values():
+        if node.get("class_type") == "ApplyBendsFromJSON" and isinstance(node["inputs"].get("bends_json"), str):
+            try:
+                bends += json.loads(node["inputs"]["bends_json"]).get("bends") or []
+            except json.JSONDecodeError:
+                continue
+    return bends
+
+
+def is_bent(entry: dict) -> bool:
+    """Whether a run bends its model at all (an unbent run is a baseline)."""
+    for n in entry["prompt"][2].values():
+        ct = n.get("class_type", "")
+        if ct == "ApplyBendsFromJSON":
+            raw = n["inputs"].get("bends_json")
+            try:
+                doc = json.loads(raw) if isinstance(raw, str) else None
+            except json.JSONDecodeError:
+                doc = None
+            if doc is None or doc.get("bends") or doc.get("attention_bends"):  # a linked document counts as bent
+                return True
+        elif "Bend" in ct and "Catalogue" not in ct:
+            return True
+    return False
+
+
 # --------------------------------------------------------------------------- API (used by the CLI and mcp_server.py)
 def use_start_image(spec: dict, image: str, denoise: float | None = None) -> tuple[dict, list[str]]:
     """The spec rewritten to start from a picture in ComfyUI's input folder (see "Starting picture" above);
@@ -763,9 +837,11 @@ def use_start_image(spec: dict, image: str, denoise: float | None = None) -> tup
         w, h = n["inputs"].get("width", 512), n["inputs"].get("height", 512)
         batch = int(n["inputs"].get("batch_size", 1) or 1)
         extra = {"group": n["group"]} if n.get("group") else {}
-        nodes[f"{k}_fit"] = {"class_type": "ImageScale", "title": f"Fit to {w}×{h}", **extra,
-                             "inputs": {"image": ["start_image", 0], "upscale_method": "lanczos", "width": w,
-                                        "height": h, "crop": "center"}}
+        # the picture keeps its shape: scaled to the latent's pixel count, never cropped to the latent's shape
+        # (VAEEncode trims the last few pixels to a multiple of 8)
+        nodes[f"{k}_fit"] = {"class_type": "ImageScaleToTotalPixels", "title": f"Fit to about {w}×{h} pixels",
+                             **extra, "inputs": {"image": ["start_image", 0], "upscale_method": "lanczos",
+                                                 "megapixels": max(0.01, round(w * h / 2**20, 2))}}
         enc = {"class_type": "VAEEncode", "inputs": {"pixels": [f"{k}_fit", 0], "vae": vae}}
         if batch > 1:
             nodes[f"{k}_enc"] = {**enc, **extra}
@@ -785,7 +861,8 @@ def use_start_image(spec: dict, image: str, denoise: float | None = None) -> tup
             notes.append(f"{k} ({n['class_type']}) has no denoise input: set how much it repaints yourself "
                          f"(e.g. start_at_step)")
     meta["denoise"] = d
-    notes.append(f"replaced {', '.join(latents)} with the starting picture; KSampler denoise {d}")
+    notes.append(f"replaced {', '.join(latents)} with the starting picture; KSampler denoise {d}; the picture keeps "
+                 f"its shape (same pixel count as the latent, not cropped)")
     if d <= 0.7:
         notes.append("at denoise <= 0.7 no executed step reaches the structure window (t 1-0.7): bends can restyle "
                      "the picture but not re-compose it")

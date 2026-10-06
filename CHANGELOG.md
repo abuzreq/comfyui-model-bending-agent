@@ -58,6 +58,23 @@ The first minutes of a session, redesigned after a workshop with artists: people
   starting from a picture in `references/starting-picture.md`.
 - **Hand-picked intro examples** (`data/kb/intro.json`), chosen from renders the dataset's owner labelled as fine.
   Examples from the LCM sweep appear once those records are published.
+- **Starting pictures keep their shape.** A picture is scaled to the model's pixel count instead of being cropped to
+  a square (`ImageScaleToTotalPixels`), so the edges of a wide painting are no longer cut off. The instructions now
+  say to describe the picture and write the prompt from it, to start bending a picture at a low denoise (lower on
+  LCM and Turbo) and check the unbent version first, and to unsample with the same model setup and sampler as the
+  other versions, next to an unbent round trip (`references/starting-picture.md`).
+- **Boards show what was applied.** `show_board` finds the run behind each picture; when the safe ranges pulled an
+  amount back, the applied amount goes into that version's details and the agent is told to say it.
+- **Rounds get logged, and liked bends get links.** After an answer, `board_feedback` lists the bent versions not
+  yet in the user's own knowledge base (with the verdict the answer implies and the baseline) for `log_round`. For
+  the versions they liked, it returns the knowledge-base pages their bends came from and a tray link that keeps
+  them. Recipes keep their `kb` source when combined, so those links work.
+- **The knowledge base is offered at the start**, recommended when it covers the user's model (`kb_status`), instead
+  of after the first round.
+- **Workflows run on newer ComfyUI.** A required widget a spec leaves out (one a newer ComfyUI added) is written
+  into the API workflow at its default, as the canvas does.
+- **Animations:** `anim.json` names where the video ended up (ComfyUI's output folder), and its folder name no longer
+  carries the date twice.
 
 ## 0.3.1
 
