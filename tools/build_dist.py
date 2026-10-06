@@ -34,7 +34,8 @@ STAGE = DIST / "_mcpb"
 BUNDLED = ("scripts", "presets", "data")  # skill folders the MCP server reads at runtime
 # files that state the release version; a release bumps them all
 VERSIONED = ("packaging/mcpb/manifest.json", "packaging/mcpb/pyproject.toml", "pyproject.toml",
-             ".claude-plugin/plugin.json", "gemini-extension.json")
+             ".claude-plugin/plugin.json", "gemini-extension.json",
+             "skills/comfyui-model-bending/scripts/mcp_server.py")  # the version the server reports
 
 
 def _files(folder: Path):
@@ -104,6 +105,9 @@ def check_versions() -> str:
         text = (ROOT / rel).read_text(encoding="utf-8")
         if rel.endswith(".json"):
             found[rel] = json.loads(text).get("version")
+        elif rel.endswith(".py"):
+            m = re.search(r'^__version__ = "([^"]+)"', text, re.M)
+            found[rel] = m.group(1) if m else None
         else:
             line = next((ln for ln in text.splitlines() if ln.startswith("version = ")), "")
             found[rel] = line.split("=", 1)[1].strip().strip('"') if line else None

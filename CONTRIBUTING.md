@@ -76,9 +76,9 @@ python tools/build_dist.py
 
 ## Releasing
 
-1. Bump the version in all five manifests: `pyproject.toml`, `packaging/mcpb/pyproject.toml`,
-   `packaging/mcpb/manifest.json`, `.claude-plugin/plugin.json`, `gemini-extension.json`. The build stops if they
-   differ. If the extension's dependencies changed, re-lock `packaging/mcpb/uv.lock`.
+1. Bump the version in all five manifests (`pyproject.toml`, `packaging/mcpb/pyproject.toml`,
+   `packaging/mcpb/manifest.json`, `.claude-plugin/plugin.json`, `gemini-extension.json`) and in `__version__` in
+   `scripts/mcp_server.py`, which the server reports to MCP clients. The build stops if they differ. If the extension's dependencies changed, re-lock `packaging/mcpb/uv.lock`.
 2. Update the release tag in the pinned install commands (`@v<version>` in the README, `references/setup.md`, the
    root `pyproject.toml` comment and the `mcp_server.py` docstring); the build stops if one is stale. Add a
    `CHANGELOG.md` entry.

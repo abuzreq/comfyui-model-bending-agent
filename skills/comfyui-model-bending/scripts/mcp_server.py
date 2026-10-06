@@ -31,6 +31,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
+__version__ = "0.4.0"  # the release; tools/build_dist.py checks it against the manifests
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
@@ -785,6 +786,7 @@ apps.add_html_resource(PICTURE_URI, boards.html("picture.html"), name="picture",
                        description="Drop a picture to start from", prefers_border=False)
 mcp = MCPServer(
     "comfyui-bending",
+    version=__version__,
     instructions=(
         "Tools for the comfyui-model-bending skill: build ComfyUI workflows from compact specs, run them, look at "
         "the results, take the artist's starting picture through an in-chat picture box, show them an in-chat pick "
