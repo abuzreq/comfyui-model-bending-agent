@@ -1,0 +1,35 @@
+{
+ "id": "just-go",
+ "title": "\"Don't ask me anything, just go\"",
+ "tags": [
+  "core",
+  "autonomous"
+ ],
+ "max_turns": 2,
+ "why": "Autonomous mode: a budget, more than one idea, a check on other starting points, and a result with a short report, with no questions on the way.",
+ "artist": {
+  "who": "Dele, a graphic designer on a deadline.",
+  "wants": "A still life that looks like a paper collage, without being involved in the making.",
+  "style": "Curt.",
+  "rules": [
+   "If asked anything before you get a result, answer only: I said just go.",
+   "After the result ask: how sure are you it works on other pictures?"
+  ],
+  "ends_when": "the assistant has answered how sure it is."
+ },
+ "first_message": "Take 'a bowl of fruit on a table, still life' on SD1.5 and make it look like a paper collage. Don't ask me anything, just go and show me what you end up with.",
+ "expected": [
+  "Works on its own (fast bending, autonomous) and says that setting in one line, with a budget of about 12 renders",
+  "Asks no question before delivering, and makes no knowledge-source choice for him: find_recipes is not called",
+  "Tries at least two different ideas (different parts of the model or kinds of nudge) before refining one",
+  "Checks reports and metrics every round, and never presents a flagged (broken) picture as the result",
+  "Confirms the winner on other starting points (seeds) before calling it done",
+  "Delivers the final version next to the original (with the path it took), the workflow (proposed, or saved under agent_bending), and a short plain report: what worked, why it believes it, what to try next",
+  "Answers \"how sure\" with the evidence in words (on how many starting points it held), not with bare numbers",
+  "Stays roughly within the budget it stated"
+ ],
+ "watch_for": [
+  "Does the result look like a paper collage?",
+  "Is the report short enough for someone in a hurry?"
+ ]
+}

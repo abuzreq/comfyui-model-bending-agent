@@ -44,7 +44,10 @@ jobs:
                   page = (await s.read_resource(uri)).contents[0]
                   assert page.mime_type == "text/html;profile=mcp-app", page.mime_type
                   assert "globalThis.ExtApps={" in page.text and 'src="http' not in page.text
-                  print(len(tools), "tools; board view", len(page.text), "chars")
+                  box = next(t for t in tools if t.name == "ask_for_picture").meta["ui"]["resourceUri"]
+                  picture = (await s.read_resource(box)).contents[0]
+                  assert "globalThis.ExtApps={" in picture.text and 'src="http' not in picture.text
+                  print(len(tools), "tools; board view", len(page.text), "chars; picture box", len(picture.text))
           asyncio.run(main())
           PY
 

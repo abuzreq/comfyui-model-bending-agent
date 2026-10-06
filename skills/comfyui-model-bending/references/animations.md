@@ -38,16 +38,22 @@ to the current value.
   check the cost against the budget.
 
 **Output.**
-- `--out x.mp4` needs ffmpeg. `.gif` and `.webp` need only Pillow.
-- A folder next to the video holds the frames, a `filmstrip.jpg` and `anim.json` (tracks, values per frame).
+- By default the video is saved in ComfyUI's output folder, inside `agent_bending/` (`--name` names it, `--format
+  mp4|gif|webp`; mp4 needs ffmpeg and falls back to gif). `--out x.mp4` writes a file of your own choosing instead.
+- The frames, a `filmstrip.jpg` and `anim.json` (tracks, values per frame) go in the skill's work folder (next to the
+  video with `--out`). ComfyUI also keeps each frame in `output/agent_bending/animation_frames/`.
+- Tell the artist where it is in plain words, and what it is if they did not ask for it by name: "Your animation, a
+  short looping video of the bend growing step by step, is saved in ComfyUI's output folder, inside agent_bending:
+  the folder where ComfyUI saves the pictures it makes." Give the play link (`view_url`) too.
 - Look at the filmstrip yourself before showing the video.
 - If several image outputs are downstream of the tracks, choose one with `--output-node` (the error lists them).
 
 ```
-uv run --no-project --with pillow python scripts/animate.py --last-run \
-    --bend "recompose@angle_degrees=0:180" --increment 5 --out bending_sessions/<session>/recompose.mp4
+uv run --no-project --with "pillow<13" python scripts/animate.py --last-run \
+    --bend "recompose@angle_degrees=0:180" --increment 5 --name recompose
 ```
 
 With the MCP tools: `start_animation(name | prompt_id | last_run, bends=[…], inputs=[…], increment, …,
 dry_run=true)` returns the plan. Call it again without `dry_run`, then poll `animation_status(job)`. When done it
-returns the video path on the user's machine and the filmstrip image.
+returns `where` (that sentence, ready to use), `file`, `view_url` (plays it in a browser) and the filmstrip
+image. With ComfyUI on another machine the video is saved on that machine, and a copy stays on this one (`video`).

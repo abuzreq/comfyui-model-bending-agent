@@ -28,6 +28,9 @@ skills/comfyui-model-bending/   the skill: SKILL.md, scripts/, references/, pres
   scripts/metrics.py, media.py  image and video metrics, contact sheets, filmstrips
   scripts/kb.py, kb_local.py    the knowledge base format, and the user's own records
   scripts/animate.py            bend animations
+  scripts/bendjson.py           reads and checks a bend handed over as JSON (the node's format)
+  scripts/surprise.py           the surprise round: random bends inside the safe ranges, plus a wild card
+  scripts/splice.py             bending a copy of a run the user made (their workflow is never changed)
 .claude-plugin/                 Claude Code plugin and marketplace
 gemini-extension.json           Gemini CLI extension
 pyproject.toml                  the MCP server as a package (uvx)
@@ -41,7 +44,7 @@ evals/evals.json                scenarios describing how the agent should behave
 
 - **Self-contained.** The skill folder must work on its own once copied anywhere: no absolute paths, no references to
   files outside it, nothing machine-specific. Settings come from environment variables (`COMFYUI_URL`,
-  `COMFY_BENDING_WORKDIR`).
+  `COMFY_BENDING_WORKDIR`), with defaults that need no setup.
 - **Ask before acting on the user's machine.** The agent never installs nodes, downloads models, restarts ComfyUI,
   deletes outputs or overwrites the user's workflows without asking. Keep it that way in new instructions and tools.
 - **Facts apart from interpretation.** In the knowledge base, measured facts and interpretations stay in separate
@@ -76,6 +79,8 @@ python tools/build_dist.py
 1. Bump the version in all five manifests: `pyproject.toml`, `packaging/mcpb/pyproject.toml`,
    `packaging/mcpb/manifest.json`, `.claude-plugin/plugin.json`, `gemini-extension.json`. The build stops if they
    differ. If the extension's dependencies changed, re-lock `packaging/mcpb/uv.lock`.
-2. Add a `CHANGELOG.md` entry.
+2. Update the release tag in the pinned install commands (`@v<version>` in the README, `references/setup.md`, the
+   root `pyproject.toml` comment and the `mcp_server.py` docstring); the build stops if one is stale. Add a
+   `CHANGELOG.md` entry.
 3. Push a tag `v<version>`. CI runs the tests, builds the skill ZIP and the `.mcpb`, and attaches them to a GitHub
    release.

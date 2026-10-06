@@ -7,11 +7,91 @@
   "query": "Bend my SD1.5 model to make this lighthouse prompt look weird: 'a lighthouse on a cliff at dusk, oil painting'",
   "files": [],
   "expected_behavior": [
-   "Runs the setup check first (comfy_canvas.py status or comfyui-bending:comfy_status) and reports free VRAM and whether Model-Bending is agent-ready",
-   "Asks the intake question once (effort L1/L2/L3 and autonomy A/B/C, plus model, budget and seed policy) or, if the user does not choose, states the default L1 + B in one line",
-   "Renders a baseline plus 3 candidates on one fixed seed, varying one factor, each bend with a label",
+   "Runs the setup check first (comfy_canvas.py status or comfyui-bending:comfy_status) and keeps its details (versions, free VRAM) out of the reply unless something needs fixing",
+   "Treats the message as a goal and starts at once: does not ask about effort (L1/L2/L3), autonomy (A/B/C), budget or seed policy before a first result; states the default (three versions a round on one starting point, stopping for the user's pick) in one line",
+   "Renders an unbent picture plus 3 candidates on one fixed seed, varying one factor, each bend with a label (bent copies of one unbent run, or one spec with a lane per candidate)",
    "Reads the ApplyBendsFromJSON report before judging, then runs metrics and looks at a contact sheet",
-   "Stops after the sweep and shows the Mode B checkpoint: one line per candidate with MAE, flags and a verdict, and a recommendation"
+   "Stops after the sweep and shows the Mode B checkpoint: the original and the three versions, one plain line per version on what changed, and its own pick; MAE, flags and layer paths stay in the log unless the user asks",
+   "After that first round, offers once to go deeper or to run on its own, and asks where to start from (the knowledge base, the user's own sessions, both, or fresh) before any find_recipes"
+  ]
+ },
+ {
+  "id": "first-use-unclear",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Hi! I just installed this. Let's try some model bending.",
+  "files": [],
+  "expected_behavior": [
+   "Runs the setup check first",
+   "Cannot tell which way in the user wants, so asks one short question offering the four ways in (a tour of what bending is, a surprise round, bending a workflow they already have, or a goal of their own), in plain words, with nothing else in it",
+   "Does not ask about effort levels, autonomy modes, budget, seed policy or the knowledge base in that first message",
+   "Does not render anything before the user answers"
+  ]
+ },
+ {
+  "id": "first-use-intro",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "What is model bending? What could I even bend?",
+  "files": [],
+  "expected_behavior": [
+   "Explains what bending is in about three plain lines, without network jargon (no 'activations', 'UNet' or layer paths unless the user uses such words)",
+   "Gives the short map of what can be bent: where in the model (early stages, core, late stages), when in the painting (early, middle, late), how (turn, zoom, strengthen or weaken, shake up), and what (an image model, a video model, their own picture, a workflow they already have)",
+   "Calls intro_examples (or kb_local.py intro) and shows the example pictures with view_images (or a contact sheet), the unbent picture next to the bent one where it is given, labelled in plain words",
+   "Says the pictures are examples other people made, on the models listed, and that the descriptions are someone's interpretation (naming who); does not call kb_sources or find_recipes for this",
+   "Still gives the explanation and the examples if ComfyUI is not running, and says that pictures of the user's own have to wait until it is",
+   "Ends by offering what to try next: one of the examples on a prompt of theirs, a surprise round, or something of their own; does not ask about effort levels or autonomy modes"
+  ]
+ },
+ {
+  "id": "surprise-me",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Surprise me! I don't have anything particular in mind.",
+  "files": [],
+  "expected_behavior": [
+   "Runs the setup check, then starts a surprise round without asking for a goal, an effort level or an autonomy mode; picks a model and a default prompt if none was given and says which",
+   "Calls surprise_bends (or scripts/surprise.py) for the model's type instead of choosing the bends itself",
+   "Renders one unbent picture, then each candidate as a bent copy of that run (bend_run, or comfy_canvas.py bend-run) with its own clamp (safe; none for the wild card), so model, prompt and starting point are the same",
+   "Shows all candidates with the wild card labelled as such, including one that fell apart, described honestly as broken rather than hidden or presented as a clean result",
+   "Captions say what is seen; tells the user what each candidate was (which part of the model, what kind of nudge, when) in plain words once they have picked or ask",
+   "Offers what next: build on a pick, or draw again (passing the earlier keys as avoid); offers the depth and autonomy choices and asks about the knowledge base only at the end of the message showing this first result"
+  ]
+ },
+ {
+  "id": "own-workflow",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "I'm in the middle of a project in ComfyUI: my own SDXL checkpoint with two LoRAs. I've just run it. Can you show me what bending would do to it?",
+  "files": [],
+  "expected_behavior": [
+   "Runs the setup check, then reads the user's own last run with inspect_run (or comfy_canvas.py run-setup) instead of rebuilding their setup in a preset",
+   "Says back in one line what the run is made of (model, LoRAs, steps, the gist of the prompt) so the user can confirm it is the right one",
+   "Makes the candidates with bend_run (or comfy_canvas.py bend-run) from that same run, one name per candidate, then runs them; does not render a separate baseline, and uses the user's own picture as the original",
+   "Checks the bend reports and compares each version against the user's picture before showing them",
+   "Shows the versions against the user's picture and, on a pick, proposes the bent copy (propose_workflow), saying it is a copy with one new group and that their own workflow is untouched",
+   "If the tool reports pictures_only, says plainly that no openable copy could be made and explains where to add the Apply Bends from JSON box by hand",
+   "Never overwrites the user's workflow and never changes their settings to make a bend look better"
+  ]
+ },
+ {
+  "id": "given-bend-json",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "I copied this from the bending web UI, can you make it into a proper workflow? {\"bends\": [{\"path\": \"middle_block.1\", \"module_type\": \"rotate\", \"module_args\": {\"angle_degrees\": 90}, \"t\": [1.0, 0.7]}, {\"path\": \"input_blocks.4\", \"module_type\": \"multipy\", \"module_args\": {\"scalar\": 3}}]}",
+  "files": [],
+  "expected_behavior": [
+   "Runs the setup check, then reads the pasted JSON with check_bends (or scripts/bendjson.py) instead of guessing at it or rewriting it by hand",
+   "Says back in plain words what the usable bend does (the model's core, turned, early in the painting), without asking about effort levels or autonomy modes first",
+   "Raises the bend the node would refuse (module_type 'multipy') with the user, suggests multiply, and does not silently drop or fix it before rendering",
+   "Mentions that 3 on input_blocks.4 is outside the range that usually keeps a picture together, and keeps the user's amount only if they want it as given (clamp none), saying it may fall apart",
+   "Reads the user's last run with inspect_run; because a web UI run already bends its model, uses bend_run with replace_bends so the pasted bends stand in for the run's own, and renders the unbent picture to compare with",
+   "Shows the bent picture next to the unbent one, then offers the bent copy as a workflow (propose_workflow when a copy can be opened, otherwise where to add the Apply Bends from JSON box by hand)"
   ]
  },
  {
@@ -109,7 +189,7 @@
   "query": "I want more abstract results on SD1.4. Start me off with some bending recipes.",
   "files": [],
   "expected_behavior": [
-   "Asks where to start from, in plain words: the shared bend knowledge base, the user's own earlier sessions, both, or explore fresh; does not choose for them",
+   "Because the user asks for recipes, asks where to start from before the first sweep, in plain words: the shared bend knowledge base, the user's own earlier sessions, both, or explore fresh; does not choose for them",
    "Stores the answer with kb_sources (or kb_local.py sources) before calling find_recipes",
    "If the user picks the community base, calls find_recipes with the goal and arch sd14, and turns the top results into the first sweep's candidates",
    "When relaying results, keeps facts (recipe, setup, how many renders, seeds and prompts) apart from interpretation, and says who interpreted: the paper's authors, the artist, or an AI model by name",
@@ -142,6 +222,21 @@
    "Builds with start_image (build_workflow start_image= or build --start-image), so the samplers start from the picture",
    "Says plainly that at that denoise the bends restyle the picture but cannot re-compose it",
    "Shows the picture as the original next to the versions and describes each version against it"
+  ]
+ },
+ {
+  "id": "start-image-attached",
+  "skills": [
+   "comfyui-model-bending"
+  ],
+  "query": "Here's my painting [picture attached]. Make it glitchy and more abstract with SD1.5.",
+  "files": [],
+  "expected_behavior": [
+   "With ask_for_picture available, calls it right away and tells the artist in one line to drop the painting into the box, instead of asking for a file path first",
+   "Waits for the artist's message, then reads picture_received and builds with its image as start_image",
+   "When the box cannot be shown (the tool says so, or picture_received reports not_displayed), offers both other ways together in plain words: paste the file's path (Copy as path), or drag it into a Load Image box in ComfyUI and say its name",
+   "Does not suggest the Picture folder setting as a way to load the picture",
+   "Shows the uploaded picture as the original on the board (original_url = its view_url)"
   ]
  },
  {

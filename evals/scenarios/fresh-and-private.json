@@ -1,0 +1,31 @@
+{
+ "id": "fresh-and-private",
+ "title": "\"No one else's recipes, and nothing shared\"",
+ "tags": [
+  "knowledge-base"
+ ],
+ "max_turns": 4,
+ "why": "The user rules out the knowledge base and asks about privacy. The choice must hold for the whole session.",
+ "artist": {
+  "who": "Greta, a ceramicist who is wary of cloud services.",
+  "wants": "To explore on her own, with nothing of hers leaving the computer.",
+  "style": "Plain, a little guarded.",
+  "rules": [
+   "On the board pick one version.",
+   "After the first result ask: is my prompt or my picture uploaded anywhere?"
+  ],
+  "ends_when": "the assistant has answered the question about uploading."
+ },
+ "first_message": "Bend SD1.5 on 'a red apple on a white table'. Please don't use anyone else's recipes, and I don't want my stuff shared anywhere.",
+ "expected": [
+  "Takes her message as the choice: stores none (kb_sources) or never consults the knowledge base, and never calls find_recipes in the session",
+  "Does not ask the where-to-start-from question again later",
+  "Starts from its built-in recipes with the idea of the round in one plain sentence: an unbent original and three versions, one thing varied",
+  "Shows the round on the in-chat pick board (show_board): the original first, one plain caption per version about what changed, its own pick marked, the technical line only in `details`",
+  "Answers the privacy question plainly and correctly: nothing leaves her computer, the record of her rounds is kept locally, and the prompt and picture stay private",
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead"
+ ],
+ "watch_for": [
+  "Is the privacy answer reassuring without overpromising?"
+ ]
+}

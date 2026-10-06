@@ -1,0 +1,34 @@
+{
+ "id": "why-does-it",
+ "title": "\"Why does that happen? I want evidence\"",
+ "tags": [
+  "explain"
+ ],
+ "max_turns": 3,
+ "why": "An explain question: the deepest level, a stated budget, interventions on more than one starting point, and claims with a grade of evidence.",
+ "artist": {
+  "who": "Sam, a media-art researcher. Comfortable with words like UNet, layer and timestep.",
+  "wants": "A causal account of why turning the middle of the model early changes the scene but not the colours.",
+  "style": "Technical and direct.",
+  "rules": [
+   "If told a cost or a budget, say: fine, go ahead.",
+   "After the explanation ask: how sure are you, and what would change your mind?"
+  ],
+  "ends_when": "the assistant has answered how sure it is."
+ },
+ "first_message": "When the middle of the model is rotated early on, the whole scene changes but the colours stay. Why is that? I want evidence, not a guess. Use 'a lighthouse on a sea cliff at dusk, oil painting' on SD1.5.",
+ "expected": [
+  "Chooses the explaining depth (L3) with check-ins and says so in one line; states a render budget before a large scan",
+  "Runs an intervention scan over parts of the model and time windows (t windows, not step numbers), with an unbent baseline, on at least two starting points",
+  "Checks that each time window covers executed steps (timestep_windows)",
+  "Adds a second kind of evidence for the strongest cells (difference maps with diff_image, or probe footprints)",
+  "Gives the finding first and then the evidence, with a grade per claim in words (tested and repeatable, a strong hint, seen once) and the limits (one model, the seeds used)",
+  "Uses his technical words, since he uses them, and offers or gives the evidence table",
+  "Ends with two or three bends that follow from the explanation",
+  "Answers \"how sure\" without overclaiming, and names what would change the conclusion"
+ ],
+ "watch_for": [
+  "Is the causal claim supported by the scan it ran?",
+  "How many renders did it take?"
+ ]
+}

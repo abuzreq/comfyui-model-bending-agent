@@ -7,11 +7,17 @@ never through the model), and on Send stores
 the artist's answer (`submit_board`) and posts a plain sentence into the chat. The model reads the exact answer with
 `board_feedback`. Clients without MCP Apps get the same versions as one labelled contact sheet instead.
 
-Boards are JSON files under <workdir>/boards/. Standard library plus Pillow.
+The picture box is the same idea in the other direction: `ask_for_picture` shows a box in the chat where the artist
+drops a picture (one attached to the chat is not a file the server can open); the view sends it to the server in parts
+(`add_picture`), which uploads it to ComfyUI, and posts a sentence into the chat. The model reads the result with
+`picture_received`.
+
+Boards and picture boxes are JSON files under <workdir>/boards/. Standard library plus Pillow.
 """
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import re
@@ -29,7 +35,9 @@ MAX_CANDIDATES = 6
 EXTRAS = ("votes", "keep_change", "strength", "direction")
 CHIPS = ("composition", "subject", "palette", "lighting", "texture", "style")
 NOT_SHOWN_AFTER_S = 20  # a displayed board fetches its first picture within seconds
-_ID = re.compile(r"^board_[0-9a-f]{6,32}$")
+MAX_PICTURE_BYTES = 30_000_000
+PART_BYTES = 400_000  # raw bytes per add_picture call (about 530 KB as base64)
+_ID = re.compile(r"^(board|picture)_[0-9a-f]{6,32}$")
 
 
 class BoardError(ValueError):
@@ -40,7 +48,7 @@ class BoardError(ValueError):
 
 def _path(root: Path, board_id: str) -> Path:
     if not _ID.match(board_id or ""):
-        raise BoardError(f"bad board id {board_id!r}")
+        raise BoardError(f"bad board or picture box id {board_id!r}")
     return root / f"{board_id}.json"
 
 
@@ -75,7 +83,7 @@ def create(root: Path, *, title: str, question: str, candidates: list[dict], ori
 def load(root: Path, board_id: str) -> dict:
     p = _path(root, board_id)
     if not p.exists():
-        raise BoardError(f"no board {board_id!r}")
+        raise BoardError(f"no board or picture box {board_id!r}")
     return json.loads(p.read_text(encoding="utf-8"))
 
 
@@ -130,6 +138,84 @@ def mark_opened(root: Path, board_id: str) -> None:
         _path(root, board_id).write_text(json.dumps(board, indent=1), encoding="utf-8")
 
 
+# ------------------------------------------------------------------ picture box
+
+def create_request(root: Path, *, purpose: str = "", session: str = "") -> dict:
+    """Store a picture box (the artist drops a picture into it); returns it."""
+    req = {"board_id": f"picture_{secrets.token_hex(6)}", "purpose": purpose[:300], "session": session,
+           "created": time.time(), "picture": None}
+    root.mkdir(parents=True, exist_ok=True)
+    _path(root, req["board_id"]).write_text(json.dumps(req, indent=1), encoding="utf-8")
+    return req
+
+
+def request_view(req: dict) -> dict:
+    return {"request_id": req["board_id"], "purpose": req["purpose"], "max_bytes": MAX_PICTURE_BYTES,
+            "part_bytes": PART_BYTES}
+
+
+def add_part(root: Path, request_id: str, data_b64: str, part: int, parts: int) -> bytes | None:
+    """Collect one part of a dropped picture; returns the whole file after the last part, None before it. Part 0
+    starts over (the artist chose another picture)."""
+    load(root, request_id)  # it exists
+    if not 1 <= parts <= MAX_PICTURE_BYTES // PART_BYTES + 1 or not 0 <= part < parts:
+        raise BoardError(f"bad part {part} of {parts}")
+    try:
+        chunk = base64.b64decode(data_b64, validate=True)
+    except ValueError as e:
+        raise BoardError(f"part {part} is not base64 data") from e
+    tmp = root / f"{request_id}.part"
+    have = tmp.stat().st_size if part and tmp.exists() else 0
+    if part and not tmp.exists():
+        raise BoardError("send the picture from its first part")
+    if have + len(chunk) > MAX_PICTURE_BYTES:
+        tmp.unlink(missing_ok=True)
+        raise BoardError(f"the picture is larger than {MAX_PICTURE_BYTES // 1_000_000} MB")
+    with tmp.open("ab" if part else "wb") as f:
+        f.write(chunk)
+    if part < parts - 1:
+        return None
+    data = tmp.read_bytes()
+    tmp.unlink(missing_ok=True)
+    return data
+
+
+def record_picture(root: Path, request_id: str, uploaded: dict) -> dict:
+    """Store what the dropped picture became in ComfyUI (a later picture replaces an earlier one)."""
+    req = load(root, request_id)
+    pic = {k: uploaded[k] for k in ("image", "view_url", "bytes", "width", "height", "name") if k in uploaded}
+    pic["revision"] = int((req.get("picture") or {}).get("revision", 0)) + 1
+    pic["received"] = time.time()
+    req["picture"] = pic
+    _path(root, request_id).write_text(json.dumps(req, indent=1), encoding="utf-8")
+    return pic
+
+
+def wait_picture(root: Path, request_id: str, max_wait: float, since_revision: int = 0) -> dict:
+    """The dropped picture once it is newer than `since_revision`, waiting up to max_wait seconds."""
+    deadline = time.time() + max(0.0, max_wait)
+    while True:
+        req = load(root, request_id)
+        pic = req.get("picture")
+        if pic and pic.get("revision", 0) > since_revision:
+            return {"status": "received", "request_id": request_id, **pic}
+        if not req.get("opened") and time.time() - req["created"] > NOT_SHOWN_AFTER_S:
+            return {"status": "not_displayed", "request_id": request_id, "opened": False,
+                    "hint": "the artist's app did not display the picture box. Offer the other two ways in plain "
+                            "words: paste the picture's full path into the chat (then upload_image), or drag it into "
+                            "a Load Image box in ComfyUI and say its name (then list_input_images)."}
+        if time.time() >= deadline:
+            return {"status": "waiting", "request_id": request_id, "opened": bool(req.get("opened")),
+                    "hint": "the picture box is open but no picture has arrived yet; call picture_received again"}
+        time.sleep(0.5)
+
+
+def picture_size(data: bytes) -> tuple[int, int]:
+    from PIL import Image
+    with Image.open(io.BytesIO(data)) as im:
+        return im.size
+
+
 # ------------------------------------------------------------------ images
 
 def _check_url(url: str) -> None:
@@ -170,9 +256,9 @@ def jpeg(data: bytes, max_side: int = 640, quality: int = 82, limit: int = 90_00
 
 # ------------------------------------------------------------------ the view
 
-def html() -> str:
-    """board.html with the vendored MCP Apps client inlined (hosts render CDN imports blank)."""
-    page = (UI_DIR / "board.html").read_text(encoding="utf-8")
+def html(page_name: str = "board.html") -> str:
+    """A view (board.html, picture.html) with the vendored MCP Apps client inlined (hosts render CDN imports blank)."""
+    page = (UI_DIR / page_name).read_text(encoding="utf-8")
     bundle = (UI_DIR / "vendor" / "ext-apps-app-with-deps.js").read_text(encoding="utf-8")
     return page.replace(BUNDLE_MARK, as_global(bundle), 1)
 

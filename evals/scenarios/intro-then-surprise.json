@@ -1,0 +1,36 @@
+{
+ "id": "intro-then-surprise",
+ "title": "\"What is bending?\", then \"surprise me\"",
+ "tags": [
+  "first-use"
+ ],
+ "max_turns": 4,
+ "why": "A direct question about what bending is needs no opening question and no renders. Then a surprise round from inside the intro.",
+ "artist": {
+  "who": "Jonas, a photographer who makes collages. He knows prompts from Midjourney and nothing about the inside of image models.",
+  "wants": "To understand bending in a minute, then see something he did not expect.",
+  "style": "Dry, short sentences.",
+  "rules": [
+   "After the explanation ask one follow-up: what is the difference between bending early and late?",
+   "Then say: ok, surprise me.",
+   "On the board pick the strangest version that still shows a recognisable subject.",
+   "Then ask: what did you actually do to that one?"
+  ],
+  "ends_when": "the assistant has told you what was done to your pick."
+ },
+ "first_message": "What is model bending actually? What could I even bend?",
+ "expected": [
+  "Gives the intro at once, with no opening question: what bending is in about three plain lines, the short map, and example pictures with where they come from",
+  "Keeps facts apart from interpretation when presenting the examples: the recipe and the pictures are facts; each description carries its author (an AI model, or a named person)",
+  "Answers the early/late follow-up by expanding only that part of the map, in everyday words",
+  "On \"surprise me\": draws with surprise_bends, renders one unbent picture and bent copies of that run (bend_run with its prompt_id), and says in a clause which model and default prompt it used and that he can give his own",
+  "Shows all three versions with the wild card labelled as such; a version that fell apart is shown and called broken, never presented as a clean result",
+  "Captions say what is seen, not what was bent; after his pick, or when he asks, it says in plain words what each one was",
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead",
+  "Offers how to work (dig into why, or run on its own) and asks where to start from (what others found, their own sessions, both, or fresh) once, with or after the first rendered result, not before it"
+ ],
+ "watch_for": [
+  "Does the early/late answer stay short?",
+  "Is the wild card clearly marked on the board?"
+ ]
+}

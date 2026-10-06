@@ -110,6 +110,25 @@ def test_log_round_keeps_facts_private_and_labels_authors(comfy):
         kl.log_round("base", "s1")
 
 
+def test_descriptions_written_with_the_knowledge_base_prompt_are_labelled_so(comfy):
+    kl = comfy
+    p = kl.description_prompt()
+    assert p["prompt_version"] == "kb-caption-v1" and "{tags}" not in p["prompt"]
+    assert all(t in p["prompt"] for t in p["effect_tags"]) and "describe only what you see" in p["prompt"]
+    r = kl.log_round("bent", "s3", caption="a red field with soft edges", change="the grey turns red",
+                     keywords=["Red Field", " ", "soft edges"], effect_tags=["colour_shift"],
+                     agent_model="claude-opus-5-5", baseline_prompt_id="base", prompt_version="kb-caption-v1")
+    ints = {e["kind"]: e for e in kl.kb.load_interpretations(Path(r["folder"]))}
+    assert ints["keywords"]["value"] == ["red field", "soft edges"]
+    for kind in ("caption", "change", "keywords", "effect_tags"):
+        assert ints[kind]["author"]["prompt_version"] == "kb-caption-v1"
+        assert "recipe known" in ints[kind]["basis"]
+    with pytest.raises(ValueError, match="prompt_version"):
+        kl.log_round("bent", "s3", caption="x", agent_model="m", prompt_version="my-own-v2")
+    with pytest.raises(ValueError, match="agent_model"):
+        kl.log_round("bent", "s3", keywords=["x"])
+
+
 def test_sources_and_find_mine(comfy):
     kl = comfy
     assert kl.session_sources("s2") is None

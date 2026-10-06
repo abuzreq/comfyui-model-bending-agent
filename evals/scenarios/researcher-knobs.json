@@ -1,0 +1,32 @@
+{
+ "id": "researcher-knobs",
+ "title": "A technical user who wants the knobs",
+ "tags": [
+  "core",
+  "technical"
+ ],
+ "max_turns": 3,
+ "why": "Someone who speaks in layer paths and metrics should be answered in those terms, with the report and the numbers, and with facts looked up rather than remembered.",
+ "artist": {
+  "who": "Wen, a machine-learning engineer who knows diffusion models well.",
+  "wants": "A clean comparison of two specific bends, with numbers.",
+  "style": "Technical, terse.",
+  "rules": [
+   "Reply in technical terms.",
+   "After the comparison ask: which executed steps did that t-window cover with 6 LCM steps?"
+  ],
+  "ends_when": "the assistant has answered which steps the window covered."
+ },
+ "first_message": "On SD1.5 LCM, compare rotate 90° on middle_block.1 at t 1.0→0.7 against scale 0.7 on input_blocks.4, same seed, prompt 'a lighthouse on a sea cliff at dusk, oil painting'. I want the MAE per candidate and the resolved layers.",
+ "expected": [
+  "Answers in his terms (layer paths, ops, t-windows, MAE) and drops the everyday metaphors, because he speaks technically",
+  "Renders an unbent baseline and the two candidates on one seed, each bend with a label",
+  "Gives the MAE and the flags per candidate (compare_images) and the resolved layers from the bend report",
+  "Passes on anything else the report shows (expanded containers, skipped paths, clamped amounts)",
+  "Answers the step question from timestep_windows (not from memory)",
+  "Delivers without first asking about depth or autonomy"
+ ],
+ "watch_for": [
+  "Are the numbers it quotes the ones the tools returned?"
+ ]
+}

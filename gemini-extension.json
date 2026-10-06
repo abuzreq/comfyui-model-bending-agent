@@ -1,5 +1,5 @@
 {
   "name": "comfyui-model-bending-agent",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Agent skill for ComfyUI-Model-Bending: bend, steer and explain image and video models in your local ComfyUI."
 }

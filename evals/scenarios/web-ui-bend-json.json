@@ -1,0 +1,45 @@
+{
+ "id": "web-ui-bend-json",
+ "title": "A bend pasted from the web UI, with a typo",
+ "tags": [
+  "smoke",
+  "core"
+ ],
+ "max_turns": 4,
+ "setup": [
+  {
+   "do": "user_run",
+   "kind": "bent",
+   "prompt": "portrait of an old fisherman, analog photo",
+   "seed": 99,
+   "prefix": "scenario_artist/fisherman"
+  }
+ ],
+ "why": "A given bend as JSON: read it, say what it does, settle the error and the out-of-range amount, then render exactly that bend in place of the run's own bends.",
+ "artist": {
+  "who": "Kenji, a tinkerer who has been playing in the Model-Bending web UI. His last run there is in ComfyUI's history.",
+  "wants": "The bend he copied, as a normal workflow he can keep.",
+  "style": "Short, a bit impatient.",
+  "rules": [
+   "If asked about the misspelled word: yes, multiply.",
+   "If told that 3 is outside the usual range: keep it at 3, that's what I had.",
+   "You do not pick on boards here; you react to the pictures in a sentence.",
+   "Then ask: ok, can I have it as a workflow?"
+  ],
+  "ends_when": "the assistant has given you the workflow or told you how to get it."
+ },
+ "first_message": "I copied this from the bending web UI, can you make it into a proper workflow? {\"bends\": [{\"path\": \"middle_block.1\", \"module_type\": \"rotate\", \"module_args\": {\"angle_degrees\": 90}, \"t\": [1.0, 0.7]}, {\"path\": \"input_blocks.4\", \"module_type\": \"multipy\", \"module_args\": {\"scalar\": 3}}]}",
+ "expected": [
+  "Reads the pasted JSON with check_bends instead of guessing at it, and says in plain words what the usable bend does (the model's core, turned, early in the painting)",
+  "Raises the bend the node would refuse (module_type \"multipy\"), suggests multiply, and waits for his answer: no silent fix or drop, and no render before it is settled",
+  "Says that 3 on that stage is outside the range that usually keeps a picture together; keeps his amount only because he asks (clamp none) and says it may fall apart",
+  "Reads his last run (inspect_run), notices that it is already bent, and uses replace_bends so the pasted bends stand in for the run's own",
+  "Renders the same run without bends as the original to compare with, and shows both with one line on what changed",
+  "Renders exactly the given bends: no extra candidates and no search around them unless he asks",
+  "Offers it as a workflow: propose_workflow when a copy can be opened, otherwise where to add the Apply Bends from JSON box by hand"
+ ],
+ "watch_for": [
+  "Is the plain-words summary of the JSON correct?",
+  "Does the bent picture look like 3× was applied?"
+ ]
+}

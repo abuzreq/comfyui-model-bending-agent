@@ -1,0 +1,31 @@
+{
+ "id": "no-video-models",
+ "title": "A video request on a machine without video models",
+ "tags": [
+  "video"
+ ],
+ "max_turns": 2,
+ "why": "Limits said plainly: check what is installed before promising, do not download anything, and offer what works now. (Assumes this ComfyUI has no WAN video models.)",
+ "artist": {
+  "who": "Olu, a video artist with a mid-range laptop GPU.",
+  "wants": "A short clip of waves whose motion gets warped.",
+  "style": "Curious, practical.",
+  "rules": [
+   "If told that something is missing, ask: what would I need, and is there anything close you can do right now?",
+   "Never agree to downloads in this chat: say you will sort that out later."
+  ],
+  "ends_when": "the assistant has said what you would need and what it can do now."
+ },
+ "first_message": "Can you bend a video too? I'd love a short clip of waves where the motion itself gets warped.",
+ "expected": [
+  "Checks what is installed before promising anything (comfy_status, list_models) instead of starting to build",
+  "Says plainly what is missing (the video model files, and what they need in graphics memory) in everyday words",
+  "Does not download models, install anything or ask him to restart ComfyUI",
+  "Says that bending video models is experimental",
+  "Offers what works now, for example a bend animation of a still picture, and says how that differs from a bent video",
+  "Keeps it short and in his terms"
+ ],
+ "watch_for": [
+  "Would he know exactly what to get, and roughly how big it is?"
+ ]
+}

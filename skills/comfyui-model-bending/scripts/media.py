@@ -3,11 +3,16 @@ the PATH) only for .mp4 / .webm outputs.
 
 Video models (WAN) usually save with SaveAnimatedWEBP, which Pillow reads directly. A still is a one-frame video
 here, so callers can treat both the same way.
+
+What may be opened (`read`): ComfyUI /api/view URLs on the configured server (COMFYUI_URL), the bend knowledge
+base's own example images on Hugging Face, and, for the command-line scripts only, local files. The MCP server turns
+local files off (ALLOW_LOCAL_PATHS = False), so a prompt cannot make it read files or call other addresses.
 """
 
 from __future__ import annotations
 
 import io
+import os
 import re
 import shutil
 import subprocess
@@ -18,7 +23,15 @@ from pathlib import Path
 
 from PIL import Image, ImageSequence, UnidentifiedImageError
 
+import comfy_canvas as cc
+
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v"}
+# ffmpeg demuxer per extension: forcing it stops ffmpeg from probing the data as a playlist (hls, concat), which
+# could make it open other files or URLs
+DEMUXER = {".mp4": "mov", ".mov": "mov", ".m4v": "mov", ".webm": "matroska", ".mkv": "matroska", ".avi": "avi"}
+ALLOW_LOCAL_PATHS = True  # the MCP server sets this to False
+KB_IMAGES = ("huggingface.co",
+             f"/datasets/{os.environ.get('BEND_KB_DATASET', 'abuzreq/model-bending-knowledge-base')}/resolve/")
 
 
 class MediaError(ValueError):
@@ -37,9 +50,30 @@ def is_video_name(src: str) -> bool:
     return Path(name_of(src)).suffix.lower() in VIDEO_EXT
 
 
-def read(src: str, timeout: float = 120) -> bytes:
+def source_kind(src: str) -> str:
+    """'comfyui', 'kb' or 'file' for a source that may be opened; MediaError otherwise."""
     if src.startswith(("http://", "https://")):
-        with urllib.request.urlopen(src, timeout=timeout) as r:
+        u = urllib.parse.urlsplit(src)
+        if u.scheme == "https" and u.netloc == KB_IMAGES[0] and u.path.startswith(KB_IMAGES[1]) \
+                and ".." not in u.path.split("/"):
+            return "kb"
+        base = urllib.parse.urlsplit(cc.BASE)
+        if (u.scheme, u.netloc) == (base.scheme, base.netloc) and u.path in ("/api/view", "/view"):
+            return "comfyui"
+        raise MediaError(f"only ComfyUI /api/view URLs on {cc.BASE} (from a run) or knowledge-base example images can "
+                         f"be opened, not {src!r}")
+    if not ALLOW_LOCAL_PATHS:
+        raise MediaError("local files cannot be opened through the tools; use the ComfyUI /api/view URL from a run "
+                         "(to start from a picture on this computer, use upload_image)")
+    return "file"
+
+
+def read(src: str, timeout: float = 120) -> bytes:
+    kind = source_kind(src)
+    if kind == "comfyui":
+        return cc.fetch_bytes(src, timeout)
+    if kind == "kb":
+        with urllib.request.urlopen(src, timeout=timeout) as r:  # Hugging Face redirects to its file CDN
             return r.read()
     return Path(src).read_bytes()
 
@@ -47,7 +81,8 @@ def read(src: str, timeout: float = 120) -> bytes:
 def decode(data: bytes, name: str = "") -> tuple[list[Image.Image], int]:
     """(RGB frames, total duration in ms; 0 for a still). Animated WEBP/GIF/APNG through Pillow, other video files
     through ffmpeg."""
-    if Path(name).suffix.lower() not in VIDEO_EXT:
+    suffix = Path(name).suffix.lower()
+    if suffix not in VIDEO_EXT:
         try:
             im = Image.open(io.BytesIO(data))
             frames, total = [], 0
@@ -58,7 +93,9 @@ def decode(data: bytes, name: str = "") -> tuple[list[Image.Image], int]:
                 return frames, (total if len(frames) > 1 else 0)
         except UnidentifiedImageError:
             pass
-    return _ffmpeg_frames(data, Path(name).suffix or ".mp4")
+        if suffix:
+            raise MediaError(f"{name}: not a readable image")
+    return _ffmpeg_frames(data, suffix or ".mp4")
 
 
 def _ffmpeg_frames(data: bytes, suffix: str) -> tuple[list[Image.Image], int]:
@@ -69,13 +106,14 @@ def _ffmpeg_frames(data: bytes, suffix: str) -> tuple[list[Image.Image], int]:
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / f"in{suffix}"
         src.write_bytes(data)
-        r = subprocess.run([exe, "-loglevel", "error", "-i", str(src), "-vf", "scale='min(832,iw)':-2",
+        safe = ["-protocol_whitelist", "file", "-f", DEMUXER.get(suffix, "mov")]
+        r = subprocess.run([exe, "-loglevel", "error", *safe, "-i", str(src), "-vf", "scale='min(832,iw)':-2",
                             str(Path(tmp) / "f%05d.png")], capture_output=True, text=True)
         files = sorted(Path(tmp).glob("f*.png"))
         if r.returncode or not files:
             raise MediaError(f"ffmpeg could not read the video: {r.stderr.strip()[:300]}")
         frames = [Image.open(p).convert("RGB") for p in files]
-        probe = subprocess.run([exe, "-i", str(src)], capture_output=True, text=True).stderr
+        probe = subprocess.run([exe, *safe, "-i", str(src)], capture_output=True, text=True).stderr
     fps = _fps(probe)
     return frames, int(1000 * len(frames) / fps) if fps else 0
 

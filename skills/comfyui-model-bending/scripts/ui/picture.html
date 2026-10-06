@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add your picture</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg2: var(--color-background-secondary, #f4f4f5);
+    --fg: var(--color-text-primary, #18181b);
+    --muted: var(--color-text-secondary, #6b6b73);
+    --line: var(--color-border-primary, #d9d9de);
+    --accent: var(--color-text-info, #3b5bdb);
+    --ok: var(--color-text-success, #2b8a3e);
+    --radius: var(--border-radius-md, 10px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: var(--color-background-primary, #1c1c1f); --bg2: var(--color-background-secondary, #26262a);
+      --fg: var(--color-text-primary, #ececef); --muted: var(--color-text-secondary, #a1a1aa);
+      --line: var(--color-border-primary, #3a3a40); --accent: var(--color-text-info, #8ea6ff);
+      --ok: var(--color-text-success, #69db7c);
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; padding: 14px; background: var(--bg); color: var(--fg);
+         font: 15px/1.45 var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif); }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  .purpose { margin: 0 0 12px; color: var(--muted); }
+  .drop { border: 2px dashed var(--line); border-radius: var(--radius); background: var(--bg2); padding: 22px 14px;
+          display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; cursor: pointer; }
+  .drop:hover, .drop:focus-visible { border-color: var(--accent); outline: none; }
+  .drop.over { border-color: var(--accent); border-style: solid; }
+  .drop .big { font-size: 16px; font-weight: 600; }
+  .drop .hint { font-size: 13px; color: var(--muted); }
+  .chosen { display: none; gap: 14px; align-items: center; }
+  .chosen.on { display: flex; }
+  .chosen img { width: 132px; height: 132px; object-fit: contain; border-radius: calc(var(--radius) - 4px);
+                background: var(--line); flex: none; }
+  .chosen .name { font-weight: 600; word-break: break-all; }
+  .chosen .meta { font-size: 13px; color: var(--muted); }
+  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 8px; width: 100%; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+  button.pill { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px;
+                padding: 5px 13px; font: inherit; font-size: 13px; cursor: pointer; }
+  .status { font-size: 13px; color: var(--muted); }
+  .status.ok { color: var(--ok); }
+  .status.err { color: #d9480f; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<h1>Add your picture</h1>
+<p class="purpose" id="purpose">Claude will start from it.</p>
+<div class="drop" id="drop" role="button" tabindex="0" aria-label="Choose a picture">
+  <div class="big">Drop a picture here</div>
+  <div class="hint">or click to choose a file, or paste one (Ctrl+V / ⌘V)</div>
+</div>
+<div class="chosen" id="chosen">
+  <img id="thumb" alt="Your picture">
+  <div style="flex:1;min-width:0">
+    <div class="name" id="name"></div>
+    <div class="meta" id="meta"></div>
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+</div>
+<div class="actions">
+  <span class="status" id="status" role="status" aria-live="polite"></span>
+  <button class="pill" id="another" type="button" hidden>Choose another picture</button>
+</div>
+<input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff,image/*">
+
+<script>/*__EXT_APPS_BUNDLE__*/</script>
+<script>
+(() => {
+  const { App, applyDocumentTheme, applyHostStyleVariables, applyHostFonts } = globalThis.ExtApps;
+  const $ = (id) => document.getElementById(id);
+  const app = new App({ name: "comfyui-bending-picture", version: "1.0.0" }, {}, { autoResize: true });
+  // ComfyUI loads these as they are; anything else the browser can open is converted to PNG first.
+  const KEEP = ["image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff"];
+  const MAX_SIDE = 4096;  // larger pictures are scaled down: the model works at 512-1536 px anyway
+  const state = { request: null, busy: false, sent: 0, size: null };
+
+  function theme(ctx) {
+    if (!ctx) return;
+    if (ctx.theme) { applyDocumentTheme(ctx.theme); document.documentElement.dataset.theme = ctx.theme; }
+    if (ctx.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
+    if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
+  }
+  app.onhostcontextchanged = (ctx) => theme(ctx);
+
+  const status = (text, kind = "") => { $("status").textContent = text; $("status").className = `status ${kind}`; };
+  const textOf = (r) => (r?.content || []).map((c) => c.text || "").join(" ");
+
+  app.ontoolresult = async (result) => {
+    const req = result?.structuredContent?.request;
+    if (result?.isError || !req) {
+      $("drop").hidden = true;
+      status(textOf(result) || "This picture box could not be shown. Tell Claude in the chat.", "err");
+      return;
+    }
+    state.request = req;
+    if (req.purpose) $("purpose").textContent = req.purpose;
+    try {  // tells the server the box is on screen
+      await app.callServerTool({ name: "add_picture", arguments: { request_id: req.request_id } });
+    } catch {}
+  };
+
+  // ------------------------------------------------------------------ choosing
+  const drop = $("drop"), input = $("file");
+  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+  $("another").addEventListener("click", () => input.click());
+  input.addEventListener("change", () => { if (input.files[0]) take(input.files[0]); input.value = ""; });
+  for (const ev of ["dragenter", "dragover"]) document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
+  for (const ev of ["dragleave", "drop"]) document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); });
+  document.addEventListener("drop", (e) => {
+    const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith("image/")) || e.dataTransfer?.files?.[0];
+    if (f) take(f);
+  });
+  document.addEventListener("paste", (e) => {
+    const f = [...(e.clipboardData?.files || [])].find((x) => x.type.startsWith("image/"));
+    if (f) { e.preventDefault(); take(f, "pasted picture.png"); }
+  });
+
+  async function take(file, fallbackName) {
+    if (state.busy) return;
+    if (!state.request) { status("The picture box is still starting; try again in a moment.", "err"); return; }
+    state.busy = true;
+    let name = file.name || fallbackName || "picture.png";
+    $("another").hidden = true;
+    status("Reading the picture…");
+    try {
+      let blob = file, dims = null;
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => null);
+      if (!bitmap && !KEEP.includes(file.type)) throw new Error("That file isn't a picture this box can read.");
+      const tooBig = file.size > state.request.max_bytes;
+      if (bitmap) dims = [bitmap.width, bitmap.height];
+      if (bitmap && (!KEEP.includes(file.type) || tooBig || Math.max(bitmap.width, bitmap.height) > MAX_SIDE)) {
+        const k = Math.min(1, MAX_SIDE / Math.max(...dims));
+        dims = dims.map((d) => Math.round(d * k));
+        blob = await redraw(bitmap, dims, tooBig || file.size > 8e6 ? "image/jpeg" : "image/png");
+        name = name.replace(/\.[^.]*$/, "") + (blob.type === "image/jpeg" ? ".jpg" : ".png");
+      }
+      if (blob.size > state.request.max_bytes) throw new Error("That picture is too large.");
+      state.size = dims;
+      show(blob, name);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const size = state.request.part_bytes, parts = Math.max(1, Math.ceil(bytes.length / size));
+      let last = null;
+      for (let i = 0; i < parts; i++) {
+        status(parts > 1 ? `Sending… ${Math.round((i / parts) * 100)}%` : "Sending…");
+        const r = await app.callServerTool({ name: "add_picture", arguments: {
+          request_id: state.request.request_id, name, data: b64(bytes.subarray(i * size, (i + 1) * size)), part: i, parts } });
+        if (r.isError) throw new Error(textOf(r) || "ComfyUI did not take the picture.");
+        last = r.structuredContent || JSON.parse(textOf(r) || "{}");
+        $("progress").style.width = `${Math.round(((i + 1) / parts) * 100)}%`;
+      }
+      state.sent += 1;
+      const m = await app.sendMessage({ role: "user", content: [{ type: "text",
+        text: `${state.sent > 1 ? "Use this picture instead" : "Here's my picture"}: "${name}" (picture box ${state.request.request_id}).` }] })
+        .catch(() => ({ isError: true }));
+      const [w, h] = last?.width ? [last.width, last.height] : state.size || ["?", "?"];
+      $("meta").textContent = `${w} × ${h} px · in ComfyUI as ${last?.image || "?"}`;
+      status(m?.isError ? "Added ✓ Tell Claude in the chat that it's there." : "Added ✓ Claude has it.", "ok");
+    } catch (e) {
+      status(`${e.message || e} Try another picture, or tell Claude the file's path in the chat.`, "err");
+    }
+    state.busy = false;
+    $("another").hidden = false;
+  }
+
+  function redraw(bitmap, [width, height], type) {
+    const c = document.createElement("canvas");
+    c.width = width; c.height = height;
+    const g = c.getContext("2d");
+    if (type === "image/jpeg") { g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); }
+    g.drawImage(bitmap, 0, 0, c.width, c.height);
+    return new Promise((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("The picture could not be converted."))), type, 0.92));
+  }
+
+  function show(blob, name) {
+    drop.hidden = true;
+    $("chosen").classList.add("on");
+    $("thumb").src = URL.createObjectURL(blob);
+    $("name").textContent = name;
+    $("meta").textContent = `${state.size ? `${state.size[0]} × ${state.size[1]} px · ` : ""}${(blob.size / 1e6).toFixed(1)} MB`;
+    $("progress").style.width = "0";
+  }
+
+  function b64(bytes) {
+    let s = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+
+  app.connect().then(() => theme(app.getHostContext())).catch(() => {
+    $("drop").hidden = true;
+    status("This box needs the Claude app. Tell Claude the picture's path in the chat instead.", "err");
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+{
+ "note": "Hand-picked examples for a first session (kb_local.intro_examples). Picked on 2026-10-04 by ai:claude-fable-5-1 at the dataset owner's request, mostly from renders the owner labelled 'fine' while calibrating the broken-image check, plus one from the author's experiments. The first usable entry of each part (early, core, late) is shown first, then the others in order; a 'fallback' entry is used only when its part has no other usable entry. An entry is usable when the community index in use holds records of its source, so entries from sources that are not published yet are skipped until they are. Captions are the picker's reading of the pictures (caption_by).",
+ "sd1": [
+  {
+   "record": "cb74af28f29871b9804c",
+   "source": "paper",
+   "baseline": "0d80844c7d529a3cfc9e",
+   "part": "early",
+   "group": "in.lo",
+   "op": "multiply",
+   "args": {
+    "scalar": 2
+   },
+   "window": "all",
+   "checkpoint": "realisticVisionV51_v51VAE.safetensors",
+   "recipe": {
+    "path": "input_blocks.8.0.out_layers.0",
+    "module_type": "multiply",
+    "module_args": {
+     "scalar": 2
+    }
+   },
+   "caption": "The same studio portrait with a different sitter: a young man where there was a young woman. Pose, clothes and light stay.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "eef9df9aa5cc3df7c820",
+   "source": "sweep",
+   "baseline": "de1eccace874429a61dc",
+   "part": "core",
+   "group": "mid",
+   "op": "multiply",
+   "args": {
+    "scalar": 0.0
+   },
+   "window": "all",
+   "checkpoint": "LCM_Dreamshaper_v7_4k.safetensors",
+   "recipe": {
+    "path": "middle_block.1",
+    "module_type": "multiply",
+    "module_args": {
+     "scalar": 0.0
+    }
+   },
+   "caption": "The scene is staged anew: the lighthouse now stands on a tall rock in the foreground, with a second, small one behind it. The palette and the painted look stay.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "373b5ff95b7efa858c81",
+   "source": "author_experiment",
+   "baseline": "e45eee9c188d0904f0df",
+   "part": "core",
+   "fallback": true,
+   "group": "mid",
+   "op": "rotate",
+   "args": {
+    "angle_degrees": 90.0
+   },
+   "window": "all",
+   "checkpoint": "sd-v1-4.ckpt",
+   "recipe": {
+    "path": "middle_block.0.in_layers.2",
+    "module_type": "rotate",
+    "module_args": {
+     "angle_degrees": 90.0
+    }
+   },
+   "caption": "The tower stays where it was but turns into a slimmer spire with a plainer body. Sea, sky and colours stay.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "60a2c523e34f7133c0fa",
+   "source": "paper",
+   "baseline": "0d80844c7d529a3cfc9e",
+   "part": "late",
+   "group": "out.lo",
+   "op": "add_noise",
+   "args": {
+    "noise_std": 2
+   },
+   "window": "all",
+   "checkpoint": "realisticVisionV51_v51VAE.safetensors",
+   "recipe": {
+    "path": "output_blocks.4.0.out_layers.0",
+    "module_type": "add_noise",
+    "module_args": {
+     "noise_std": 2
+    }
+   },
+   "caption": "The analog portrait becomes a glossy illustrated character with goggles and a cap: a new subject and a new style, still a head-and-shoulders portrait.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "c5dc13d45b0a2a54bb2e",
+   "source": "sweep",
+   "baseline": "13216623a742ccb32c5e",
+   "part": "early",
+   "group": "in.hi",
+   "op": "rotate",
+   "args": {
+    "angle_degrees": 90.0
+   },
+   "window": "early",
+   "checkpoint": "LCM_Dreamshaper_v7_4k.safetensors",
+   "recipe": {
+    "path": "input_blocks.2.0",
+    "module_type": "rotate",
+    "module_args": {
+     "angle_degrees": 90.0
+    },
+    "t": [
+     1.0,
+     0.667
+    ]
+   },
+   "caption": "A different still life: the vase of flowers gives way to bowls of fruit seen from closer. It is still a soft, light table scene.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "20b79226df252c3ae7fc",
+   "source": "sweep",
+   "baseline": "1bbda6ca1f7efc631dfb",
+   "part": "early",
+   "group": "in.lo",
+   "op": "multiply",
+   "args": {
+    "scalar": 0.0
+   },
+   "window": "all",
+   "checkpoint": "LCM_Dreamshaper_v7_4k.safetensors",
+   "recipe": {
+    "path": "input_blocks.8.0",
+    "module_type": "multiply",
+    "module_args": {
+     "scalar": 0.0
+    }
+   },
+   "caption": "The street dissolves into a mosaic of small blue and orange tiles: the colours of the night scene without its objects.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "a73f8c79d0bacad22ec1",
+   "source": "paper",
+   "baseline": "0d80844c7d529a3cfc9e",
+   "part": "early",
+   "group": "in.lo",
+   "op": "add_noise",
+   "args": {
+    "noise_std": 2
+   },
+   "window": "all",
+   "checkpoint": "realisticVisionV51_v51VAE.safetensors",
+   "recipe": {
+    "path": "input_blocks.8.1.transformer_blocks.0.attn1.to_out.0",
+    "module_type": "add_noise",
+    "module_args": {
+     "noise_std": 2
+    }
+   },
+   "caption": "The portrait gives way to an abstract collage of paper-like shapes in browns, ochres and white. The subject is gone.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "e4aa6ba30f9e1e56bfdc",
+   "source": "sweep",
+   "baseline": "c244b02b7723b34ac353",
+   "part": "late",
+   "group": "out.hi",
+   "op": "rotate",
+   "args": {
+    "angle_degrees": 30.0
+   },
+   "window": "late",
+   "checkpoint": "LCM_Dreamshaper_v7_4k.safetensors",
+   "recipe": {
+    "path": "output_blocks.10.1",
+    "module_type": "rotate",
+    "module_args": {
+     "angle_degrees": 30.0
+    },
+    "t": [
+     0.333,
+     0.0
+    ]
+   },
+   "caption": "The fisherman is still there, rebuilt from loose dabs of paint, like an impressionist study of the photograph.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "b91edb24d06339e2247f",
+   "source": "paper",
+   "baseline": "0d80844c7d529a3cfc9e",
+   "part": "late",
+   "group": "out.lo",
+   "op": "multiply",
+   "args": {
+    "scalar": 0
+   },
+   "window": "all",
+   "checkpoint": "realisticVisionV51_v51VAE.safetensors",
+   "recipe": {
+    "path": "output_blocks.5.1.transformer_blocks.0.ff.net.0.proj",
+    "module_type": "multiply",
+    "module_args": {
+     "scalar": 0
+    }
+   },
+   "caption": "The sitter turns into a pale, mask-like figure, as if carved or drawn. The framing and the backdrop stay.",
+   "caption_by": "ai:claude-fable-5-1"
+  },
+  {
+   "record": "9f0e604f01a273b13ddd",
+   "source": "sweep",
+   "baseline": "2976534844fe80be26b4",
+   "part": "early",
+   "group": "in.lo",
+   "op": "multiply",
+   "args": {
+    "scalar": 0.0
+   },
+   "window": "middle",
+   "checkpoint": "LCM_Dreamshaper_v7_4k.safetensors",
+   "recipe": {
+    "path": "input_blocks.8.0",
+    "module_type": "multiply",
+    "module_args": {
+     "scalar": 0.0
+    },
+    "t": [
+     0.833,
+     0.167
+    ]
+   },
+   "caption": "The fisherman disappears and only the sea behind him remains.",
+   "caption_by": "ai:claude-fable-5-1"
+  }
+ ]
+}

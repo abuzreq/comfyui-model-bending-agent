@@ -1,0 +1,36 @@
+{
+ "id": "surprise-again",
+ "title": "\"Surprise me\", twice",
+ "tags": [
+  "smoke",
+  "first-use"
+ ],
+ "max_turns": 4,
+ "why": "Playing without a goal: pictures before questions, a labelled wild card, an explanation afterwards, and a second draw that is really different.",
+ "artist": {
+  "who": "Ines, a printmaker who likes accidents. She is here to play.",
+  "wants": "To be surprised, and to keep one result she likes.",
+  "style": "Enthusiastic, very short.",
+  "rules": [
+   "On the first board pick the weirdest version; pick the wild card if it is interesting.",
+   "After the assistant's answer say: again!",
+   "On the second board pick one and say you would like to keep it."
+  ],
+  "ends_when": "the assistant has answered your wish to keep one."
+ },
+ "first_message": "Surprise me! I don't have anything particular in mind.",
+ "expected": [
+  "Gets pictures in front of her without asking anything first; says in a clause which model and which default prompt it used, and that she can give her own",
+  "The draw comes from surprise_bends: two bends inside the safe range and one wild card past it, each on a different part of the model, rendered as bent copies of one unbent run on the same starting point",
+  "Checks the result before showing it (bend reports, compare_images) and calls a version that fell apart broken, in plain words",
+  "The wild card is labelled on the board; captions describe what is seen, not what was bent",
+  "After her pick it tells her what each version was, in plain words",
+  "\"Again\" gives a new draw that avoids the earlier bends (surprise_bends with `avoid`), not the same three",
+  "Offers how to work and asks where to start from once, with the first result, and does not repeat it every round",
+  "When she keeps one: carries on from that bend or offers to keep it (as a workflow, or an animation), and records the round in her own base (log_round) with her words"
+ ],
+ "watch_for": [
+  "How long does it take until the first pictures?",
+  "Are the two rounds visibly different in kind?"
+ ]
+}

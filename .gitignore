@@ -7,6 +7,7 @@ build/
 .pytest_cache/
 .ruff_cache/
 bending_sessions/
+evals/runs/
 .DS_Store
 Thumbs.db
 .idea/

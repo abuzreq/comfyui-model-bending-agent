@@ -24,13 +24,15 @@ Timing:
   --loop boomerang|restart|none   there and back (default), jump back to the start, or play once
   --hold 0  --repeats 2  --fps 12  --reverse
 Output:
-  --out anim.mp4           .mp4 (needs ffmpeg), .gif or .webp (Pillow). The frames and anim.json (tracks, values
-                           per frame, prompt ids) go in a folder next to it.
+  (default)                saved into ComfyUI's output folder, inside agent_bending/, next to the pictures ComfyUI
+                           saves; --format mp4 (needs ffmpeg; falls back to gif) | gif | webp, --name for the file
+  --out anim.mp4           or a file of your own: .mp4, .gif or .webp. The frames and anim.json (tracks, values per
+                           frame, prompt ids) go in a folder next to it (by default in the skill's work folder).
   --output-node NODE       which image output to film, when the workflow has several downstream of the tracks
   --dry-run                show the plan (frames, values, duration) and render nothing
 
-  python animate.py --last-run --bend "recompose@angle_degrees=0:180" --increment 5 --out recompose.mp4
-Environment: COMFYUI_URL (default http://127.0.0.1:8188).
+  python animate.py --last-run --bend "recompose@angle_degrees=0:180" --increment 5 --name recompose
+Environment: COMFYUI_URL (default http://127.0.0.1:8188), COMFY_BENDING_WORKDIR (see comfy_canvas.work_dir).
 """
 
 from __future__ import annotations
@@ -338,7 +340,7 @@ def render(api: dict, ui: dict | None, p: dict, out_dir: Path, progress=None, ti
     stamp = out_dir.name
     pids = []
     for i, t in enumerate(p["times"]):
-        wf, _ = frame_prompt(api, p["tracks"], t, p["keep"], f"bend_anim/{stamp}/f{i:03d}")
+        wf, _ = frame_prompt(api, p["tracks"], t, p["keep"], f"{cc.INPUT_SUBFOLDER}/animation_frames/{stamp}/f{i:03d}")
         pids.append(cc.queue_prompt(wf, ui)["prompt_id"])
     paths = []
     deadline = time.time() + timeout * max(1, len(pids) // 4)
@@ -370,7 +372,7 @@ def render(api: dict, ui: dict | None, p: dict, out_dir: Path, progress=None, ti
 
 def _get(path: str) -> bytes:
     import urllib.request
-    with urllib.request.urlopen(cc.BASE + path, timeout=120) as r:
+    with cc._OPENER.open(cc.BASE + path, timeout=120) as r:
         return r.read()
 
 
@@ -456,6 +458,30 @@ def animate(api: dict, ui: dict | None, tracks: list[dict], out: Path, progress=
     return manifest
 
 
+def video_name(name: str, fmt: str) -> str:
+    """e.g. recompose_animation_20261004-153012.mp4"""
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_")[:50] or "bend"
+    return f"{stem}_animation_{datetime.now().strftime('%Y%m%d-%H%M%S')}.{fmt}"
+
+
+def deliver(video: Path) -> dict:
+    """Save the encoded video into ComfyUI's output folder (agent_bending/). With ComfyUI on this computer the local
+    copy is removed, so there is one file; with ComfyUI elsewhere a copy stays here too. Returns `where`, a sentence
+    for the artist, plus `file` and `view_url`, or the local `video` path if ComfyUI did not take it."""
+    try:
+        saved = cc.save_output(video.read_bytes(), video.name)
+    except (cc.CanvasError, OSError) as e:
+        return {"video": str(video), "where": f"Saved on this computer at {video} (ComfyUI did not take it: {e})."}
+    where = (f"Saved in ComfyUI's output folder, inside agent_bending, as {Path(saved['file']).name}. That is the "
+             f"folder where ComfyUI saves every picture it makes. It also plays in the browser: {saved['view_url']}")
+    if cc.is_local():
+        video.unlink(missing_ok=True)
+        return {**saved, "video": None, "where": where}
+    return {**saved, "video": str(video),
+            "where": where.replace("ComfyUI's output folder", "the output folder of the ComfyUI on the other machine",
+                                   1) + f". A copy is on this computer at {video}"}
+
+
 def build_tracks(api: dict, bends: list[str], inputs: list[str]) -> list[dict]:
     tracks = [parse_track(api, "bend", b) for b in bends] + [parse_track(api, "input", s) for s in inputs]
     return tracks or default_tracks(api)
@@ -476,7 +502,8 @@ def main(argv=None):
     ap.add_argument("--hold", type=int, default=0); ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--fps", type=int, default=12); ap.add_argument("--reverse", action="store_true")
     ap.add_argument("--output-node"); ap.add_argument("--max-frames", type=int, default=MAX_FRAMES)
-    ap.add_argument("--out", default="bend_animation.mp4"); ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--out"); ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--name", default=""); ap.add_argument("--format", choices=["mp4", "gif", "webp"], default="mp4")
     a = ap.parse_args(argv)
     try:
         api, ui = load_source(a.api, a.png, a.prompt_id, a.last_run)
@@ -491,10 +518,16 @@ def main(argv=None):
                               "first_values": p["values"][:3], "last_value": p["values"][-1]},
                              indent=1, ensure_ascii=False))
             return
-        m = animate(api, ui, tracks, Path(a.out), progress=lambda d, n: print(f"\rframe {d}/{n}", end="",
-                                                                               flush=True), **kw)
-        print(f"\nwrote {m['video']} ({m['rendered_frames']} rendered frames, {m['duration_s']} s); "
-              f"frames and anim.json in {Path(m['frames_dir']).parent}")
+        if a.out:
+            out = Path(a.out)
+        else:
+            fmt = "gif" if a.format == "mp4" and shutil.which("ffmpeg") is None else a.format
+            out = cc.work_dir() / "animations" / video_name(a.name, fmt)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        m = animate(api, ui, tracks, out, progress=lambda d, n: print(f"\rframe {d}/{n}", end="", flush=True), **kw)
+        where = f"wrote {m['video']}" if a.out else deliver(out)["where"]
+        print(f"\n{where}\n({m['rendered_frames']} rendered frames, {m['duration_s']} s; frames and anim.json in "
+              f"{Path(m['frames_dir']).parent})")
     except (AnimationError, cc.CanvasError, OSError, ValueError) as e:
         sys.exit(f"{type(e).__name__}: {e}")
 

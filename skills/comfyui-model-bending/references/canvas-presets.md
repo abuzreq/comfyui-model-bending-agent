@@ -29,6 +29,7 @@ SD1.5 LCM checkpoint. To use one: copy it, then change the loaders, prompt, path
 
 | preset | needs |
 |---|---|
+| `base_sd15.spec.json` | core only: one unbent picture, the run that `bend_run` copies for a surprise round |
 | `switchboard_bridge_sd15.spec.json` | ComfyUI-Agent-Bridge |
 | `switchboard_sd15.spec.json` | core only (switch chain + Note/Primitive feedback) |
 | `slider_board_sd15.spec.json` | agent-ready Model-Bending (`{{a}}`…`{{d}}`, `clamp: safe`) |

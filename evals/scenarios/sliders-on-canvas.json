@@ -1,0 +1,32 @@
+{
+ "id": "sliders-on-canvas",
+ "title": "\"I'd rather have sliders in ComfyUI\"",
+ "tags": [
+  "canvas"
+ ],
+ "max_turns": 3,
+ "why": "The canvas route: the right board for a continuous direction, a pre-run, a hand-over with one clear instruction, and waiting for the user. (The artist cannot really use ComfyUI here, so only the hand-over is tested.)",
+ "artist": {
+  "who": "Arlo, an illustrator who likes to tinker. ComfyUI is open on his second screen.",
+  "wants": "Sliders for turning and zooming the middle of the model, to play with on his own.",
+  "style": "Casual.",
+  "rules": [
+   "You cannot actually touch ComfyUI in this conversation. If asked to confirm or open something there, say you clicked Confirm and it opened, and ask what each slider does.",
+   "Then say: I'll play with it tonight, thanks."
+  ],
+  "ends_when": "the assistant has explained the sliders and you have said goodbye."
+ },
+ "first_message": "I'd rather have sliders in ComfyUI that I can play with myself. Something for turning and zooming the middle of the model on 'a lighthouse on a sea cliff at dusk, oil painting'.",
+ "expected": [
+  "Chooses the slider board for a continuous direction (the slider_board_sd15 preset) and adapts it: his prompt, slider labels in his terms",
+  "Puts the neutral value and the safe range in the slider titles, and keeps the bends inside safe limits (clamp safe)",
+  "Builds the board and runs it once before handing it over",
+  "Hands it over with propose_workflow and a one-sentence instruction, and tells him where it is and what to press in click-path words",
+  "Explains what each slider does in plain words, and how to switch a bend off",
+  "Waits for him (wait_for_events or wait_for_user_run) instead of asking him to paste results; does not turn on canvas sharing and does not overwrite his workflows",
+  "No file paths or JSON dumps in chat"
+ ],
+ "watch_for": [
+  "Open the proposed board in ComfyUI: are the sliders labelled so you would know what to do?"
+ ]
+}

@@ -9,6 +9,7 @@ Contents:
 - Showing a board
 - Reading the answer
 - Apps that cannot show boards
+- The picture box
 - Limits
 
 Versions may be videos: the board plays each as a short silent loop (a small animated preview made by the
@@ -22,6 +23,7 @@ extension), next to the original, which may be the artist's starting picture (`o
 | choosing between versions you rendered (any level) | `show_board` |
 | the artist wants to move sliders, rewire or re-run things themselves | a canvas board (`propose_workflow`, §4) |
 | Claude Code and other agents with a shell | the contact sheet (`metrics.py sheet`), then ask in chat |
+| the artist attaches a picture to the chat, or says they will bring one | the picture box (`ask_for_picture`, below) |
 
 ## Showing a board
 
@@ -82,6 +84,24 @@ on the board, that answer counts; `board_feedback` then simply reports `waiting`
   `not_displayed` once the board is more than 20 seconds old. Then show the versions with `view_images`, one plain
   caption each, and ask in chat. Do the same whenever the artist says they cannot see a board. Do not show the board
   again in that conversation.
+
+## The picture box
+
+A picture attached to the chat reaches the model, not ComfyUI. `ask_for_picture(purpose, session)` shows a box in the
+chat where the artist drops the picture, clicks to choose the file, or pastes it. The box sends it to the extension in
+parts, the extension checks that it is a picture and uploads it into ComfyUI's `input/agent_bending/`, and the box
+posts "Here's my picture: …" into the chat. Then `picture_received(request_id)` returns `image` (the `start_image`
+value), `view_url` (use it as a board's `original_url`), `width`, `height` and the file's `name`. A second picture
+replaces the first (`revision` goes up).
+
+- `purpose` is one plain line shown in the box ("The painting the next round starts from").
+- Pictures the browser cannot hand over as PNG, JPEG, WEBP, BMP or TIFF are converted to PNG; pictures larger than
+  4096 px are scaled down to 4096 px; files over 30 MB are refused.
+- The box takes only what the artist drops in, so the Picture folder setting does not apply to it.
+- When the app cannot show it, `ask_for_picture` says so and lists the other two ways: paste the file's path
+  (`upload_image`), or drag it into a Load Image box in ComfyUI (`list_input_images`). `picture_received` reports
+  `not_displayed` when the box never opened. For a ComfyUI on another machine it offers the Load Image way only.
+- `add_picture` is the box's own tool; do not call it.
 
 ## Limits
 

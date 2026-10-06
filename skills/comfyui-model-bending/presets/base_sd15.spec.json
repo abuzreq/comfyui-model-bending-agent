@@ -1,0 +1,30 @@
+{
+  "meta": {"preset": "base", "arch": "sd15",
+           "use": "one unbent picture to start from; bend copies of its run with bend_run / comfy_canvas.py bend-run"},
+  "groups": [
+    {"id": "base", "title": "The unbent picture: model, prompt, starting point", "color": "#444444"}
+  ],
+  "nodes": {
+    "ckpt": {"class_type": "CheckpointLoaderSimple", "group": "base",
+             "inputs": {"ckpt_name": "LCM_Dreamshaper_v7_4k.safetensors"}},
+    "msd": {"class_type": "ModelSamplingDiscrete", "group": "base",
+            "inputs": {"model": ["ckpt", 0], "sampling": "lcm", "zsnr": false}},
+    "clip": {"class_type": "CLIPLoader", "group": "base",
+             "inputs": {"clip_name": "model_v1-4.safetensors", "type": "stable_diffusion"}},
+    "vae": {"class_type": "VAELoader", "group": "base",
+            "inputs": {"vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"}},
+    "pos": {"class_type": "CLIPTextEncode", "group": "base", "title": "Prompt",
+            "inputs": {"clip": ["clip", 0], "text": "a lighthouse on a sea cliff at dusk, oil painting"}},
+    "neg": {"class_type": "CLIPTextEncode", "group": "base", "title": "Negative",
+            "inputs": {"clip": ["clip", 0], "text": "lowres, blurry, jpeg artifacts, watermark, text"}},
+    "lat": {"class_type": "EmptyLatentImage", "group": "base",
+            "inputs": {"width": 512, "height": 512, "batch_size": 1}},
+    "ks": {"class_type": "KSampler", "group": "base",
+           "inputs": {"model": ["msd", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["lat", 0],
+                      "seed": 7, "steps": 6, "cfg": 1.5, "sampler_name": "lcm", "scheduler": "sgm_uniform",
+                      "denoise": 1.0}},
+    "dec": {"class_type": "VAEDecode", "group": "base", "inputs": {"samples": ["ks", 0], "vae": ["vae", 0]}},
+    "save": {"class_type": "SaveImage", "group": "base", "title": "Original (no bend)",
+             "inputs": {"images": ["dec", 0], "filename_prefix": "agent_bending/original"}}
+  }
+}

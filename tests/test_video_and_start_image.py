@@ -109,6 +109,13 @@ def comfy():
     srv.shutdown()
 
 
+@pytest.fixture(autouse=True)
+def _stub_is_the_comfyui(request, monkeypatch):
+    """In-process calls open only ComfyUI's own URLs: make the stub server the configured ComfyUI."""
+    if "comfy" in request.fixturenames:
+        monkeypatch.setattr(cc, "BASE", request.getfixturevalue("comfy")[0])
+
+
 def url(base: str, name: str) -> str:
     return f"{base}/api/view?filename={name}&subfolder=&type=output"
 

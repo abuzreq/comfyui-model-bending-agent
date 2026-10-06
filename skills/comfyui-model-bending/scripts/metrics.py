@@ -12,7 +12,7 @@ animated WEBP / GIF (what video workflows save with SaveAnimatedWEBP) need nothi
   candidate (image-to-video) measures how far each frame drifts from the starting picture.
 - sheet puts each video on its own row as a filmstrip of --frames evenly spaced frames.
 - diff averages |delta| over the matched frames and overlays it on the baseline's middle frame.
-Run with any Python that has numpy + Pillow, e.g.  uv run --with numpy --with pillow python metrics.py ...
+Run with any Python that has numpy + Pillow, e.g.  uv run --with "numpy<3" --with "pillow<13" python metrics.py ...
 or ComfyUI's own python_embeded/python.exe.
 
 Flags (thresholds calibrated on SD1.5/SDXL bend sweeps):

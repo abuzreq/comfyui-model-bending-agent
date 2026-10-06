@@ -1,0 +1,40 @@
+{
+ "id": "hello-unclear",
+ "title": "A newcomer says hello",
+ "tags": [
+  "smoke",
+  "first-use"
+ ],
+ "max_turns": 5,
+ "why": "The first message shows no way in. The agent should ask one question, then give a newcomer a tour and a first result without an interview.",
+ "artist": {
+  "who": "Mara, an illustrator who works in gouache and on a tablet. A friend helped her install ComfyUI last week. She has never heard the words 'layer' or 'activation' in this sense.",
+  "wants": "To find out what bending is, then try it on an idea of hers: 'a fox in a snowy forest, watercolour'. She likes results that look hand-made.",
+  "style": "Friendly, brief, lower-case chat. Asks 'what does that mean?' when a technical word appears.",
+  "rules": [
+   "When asked how you would like to start, choose to be shown what bending is.",
+   "After the explanation, ask to try the example you liked most on your fox prompt, and give the prompt.",
+   "On a pick board, choose the version that looks most hand-painted; if two tie, pick both.",
+   "If asked how to continue or which sources to use: keep going the same way, and you do not mind using what other people found."
+  ],
+  "ends_when": "you have picked a version of your fox and the assistant has answered that pick."
+ },
+ "first_message": "Hi! I just installed this. Let's try some model bending.",
+ "expected": [
+  "Runs the setup check (comfy_status) before its first reply, and keeps its details out of the reply",
+  "The first reply is one short question offering four ways to start (a tour of what bending is, a surprise round, bending a workflow she already has, a goal of her own) and nothing else: no greeting paragraph, no setup report, no defaults",
+  "After she chooses the tour: says what bending is in about three plain lines, gives the short map (where, when, how, what) and shows example pictures from intro_examples, saying they are other people's examples and who described them",
+  "Renders nothing for the tour itself, and neither calls find_recipes nor stores a knowledge-source choice because of it",
+  "For her fox prompt: three versions built from the example she chose (its recipe with a weaker and a stronger neighbour) next to an unbent original on the same starting point; names the model it picked in a clause",
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead",
+  "Shows the round on the in-chat pick board (show_board): the original first, one plain caption per version about what changed, its own pick marked, the technical line only in `details`",
+  "Offers how to work (dig into why, or run on its own) and asks where to start from (what others found, their own sessions, both, or fresh) once, with or after the first rendered result, not before it",
+  "Reads her pick (board_feedback) and says in one line what it understood before going on",
+  "Uses everyday words in chat: no layer paths, op names, MAE numbers or JSON unless the artist asks or speaks that way themselves"
+ ],
+ "watch_for": [
+  "Is the opening question pleasant to answer in one tap?",
+  "Do the intro examples make a good first impression of bending?",
+  "Is the message that shows the first result short enough to read?"
+ ]
+}

@@ -1,0 +1,47 @@
+{
+ "id": "own-picture",
+ "title": "Starting from her own painting",
+ "tags": [
+  "core",
+  "picture"
+ ],
+ "max_turns": 5,
+ "setup": [
+  {
+   "do": "picture",
+   "prompt": "a windswept coast with a lone tree, gouache painting",
+   "seed": 77,
+   "name": "coast_gouache.png"
+  }
+ ],
+ "why": "A picture of the artist's own: the picture box at once, how closely to follow it in her terms, and an honest word about what a bend can still reach.",
+ "artist": {
+  "who": "Lucía, a painter. She has a scan of one of her gouache paintings on this computer.",
+  "wants": "To see her painting bent, with her composition kept.",
+  "style": "Warm, unhurried.",
+  "rules": [
+   "If a picture box opens, drop your painting into it.",
+   "If you are asked for a file path instead, paste the path of your painting.",
+   "If asked how closely to follow the painting: keep the composition, but repaint it.",
+   "If asked for a prompt: a windswept coast, gouache.",
+   "On the board pick the version that keeps the tree.",
+   "Then ask: could one of these change the whole layout instead?"
+  ],
+  "ends_when": "the assistant has answered the question about the layout."
+ },
+ "first_message": "I'd like to start from one of my own paintings instead of just a prompt. How do I give it to you?",
+ "expected": [
+  "Opens the picture box at once (ask_for_picture) and tells her in one line to drop the painting into it; does not ask for a file path first and does not bring up the Picture folder setting",
+  "After her message it reads picture_received and builds from that image (start_image)",
+  "Asks how closely to follow the painting in her terms, and maps \"keep the composition, but repaint it\" to a denoise of about 0.5 to 0.65",
+  "Says what a bend can still reach at that setting: it can restyle the painting but not re-compose it",
+  "Shows her painting as the original on the pick board and describes each version against it",
+  "Answers the layout question honestly: not at this setting, and offers to follow the painting more loosely",
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead",
+  "Uses everyday words in chat: no layer paths, op names, MAE numbers or JSON unless the artist asks or speaks that way themselves"
+ ],
+ "watch_for": [
+  "Is her composition really kept in the versions?",
+  "Is the denoise explanation free of jargon?"
+ ]
+}

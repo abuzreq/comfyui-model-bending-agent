@@ -1,0 +1,32 @@
+{
+ "id": "push-until-breaks",
+ "title": "\"I want it wrecked, but still a face\"",
+ "tags": [
+  "core"
+ ],
+ "max_turns": 4,
+ "why": "Going past the safe limits on request: done knowingly, with broken results called broken, and the edge found by stepping on one axis.",
+ "artist": {
+  "who": "Vera, a glitch artist. Damage is the point of her work.",
+  "wants": "The most damaged portrait in which a face can still be seen.",
+  "style": "Blunt, enthusiastic about damage.",
+  "rules": [
+   "If warned that it may fall apart: yes, that's the point.",
+   "On the board pick the most damaged version in which you can still see a face. If you can see a face in none of them, say: too far, I can't see a face.",
+   "After a pick ask for: one notch further than that one."
+  ],
+  "ends_when": "you have seen the 'one notch further' result and the assistant has said where the edge is."
+ },
+ "first_message": "I want it wrecked. Take 'portrait of an old fisherman, analog photo' and push the bending as far as it goes, way past safe, but I still want to be able to tell it's a face.",
+ "expected": [
+  "Takes the request as it is: goes past the safe range knowingly (clamp none, or amounts beyond the table) and says in a clause that results may fall apart; no refusing and no lecture",
+  "Still checks every result (reports, compare_images), and tells her in plain words which versions broke into mush or static instead of presenting them as fine",
+  "Varies one thing (strength, or place) with the unbent original included, so the edge can be found",
+  "Reads \"one notch further\" as a step on the same axis from her pick, and says so",
+  "Names the edge: where the face still holds and where it is lost",
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead"
+ ],
+ "watch_for": [
+  "Do its words about each picture match what you see?"
+ ]
+}

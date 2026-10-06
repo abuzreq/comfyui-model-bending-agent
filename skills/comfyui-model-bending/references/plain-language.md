@@ -5,8 +5,12 @@ act on. The technical record (layer paths, amounts, metrics, JSON) still goes in
 
 Contents:
 - Translation table
+- The opening question
+- What bending is
+- The map: what can be bent
 - Describing a result
 - Asking for a choice
+- Asking for their picture
 - When something needs fixing on their machine
 
 ## Translation table
@@ -45,6 +49,52 @@ on the canvas, or when they ask.
 | node, workflow, canvas | a box in ComfyUI / the whole setup / the ComfyUI screen |
 | report, resolved, clamped | what the model actually did / it was kept within a safe strength |
 | evidence grade causal / correlational / anecdotal | tested and repeatable / a strong hint / seen once |
+| surprise round, random draw | a few nudges picked at random, within safe limits |
+| wild card, past the safe range | one pushed too far on purpose: it may fall apart |
+| safe range, clamp | the strengths that usually keep a picture together |
+| their run, history | the last picture you made in ComfyUI |
+| bent copy, splice | a copy of your workflow with one new box in it |
+
+## The opening question
+
+Ask it only when the first message does not show which way in they want (`references/first-session.md`). One short
+message, nothing else in it:
+
+> How would you like to start?
+> - **Show me what bending is**: a short tour with example pictures.
+> - **Surprise me**: I pick a few nudges at random and we see what comes out.
+> - **I'm working on something**: bend a copy of a workflow you already have in ComfyUI.
+> - **I know what I'm after**: tell me the picture or the change you want.
+
+## What bending is
+
+Three lines, in their terms. For example:
+
+> An image model paints in stages: it settles the layout first, then the style, then the fine detail. Bending means
+> reaching in while it paints and nudging one of those stages: turning it, zooming it, strengthening or weakening
+> it, or shaking it up. The prompt stays the same; what changes is how the model handles it, which gives results
+> a prompt cannot ask for.
+
+Do not explain networks, layers or activations unless they ask. If they know the field (they say "UNet", "layer",
+"activation"), drop the metaphor and use their words.
+
+## The map: what can be bent
+
+Four short lists. Give the one-line form of each; expand a list only when they ask about it.
+
+- **Where** in the model:
+  - the early stages: fine detail, then layout, then overall composition
+  - the core: what the scene is
+  - the late stages: rebuilding the composition, then style and handling, then texture and colour
+- **When** in the painting: early (layout), middle (style), late (fine detail). The same nudge does different things
+  at different moments.
+- **How**: turn, zoom, strengthen or weaken, shift, shake up. Rougher ones too: keep only the edges, swell or eat
+  away the strong areas.
+- **What**: an image model, a video model, a picture of your own as the starting point, or a workflow you already
+  have, LoRAs and all.
+
+One sentence ties it together: "A nudge is a *where*, a *when* and a *how*: for example, turning the core early in
+the painting rebuilds the scene but keeps the colours."
 
 ## Describing a result
 
@@ -68,13 +118,20 @@ starting points, it holds"), then the evidence. Keep the full evidence table for
 
 ## Asking for their picture
 
-A picture pasted into the chat reaches you but not ComfyUI, so ask where it is saved, with the click path:
+A picture attached to the chat reaches you but not ComfyUI. In the Claude app, open the picture box
+(`ask_for_picture`) and say one line:
 
-> To start from your picture, I need to know where it is on your computer. Find the file, hold **Shift** and
-> right-click it, choose **Copy as path**, and paste that here. (On a Mac: right-click it, hold **Option**, and
-> choose **Copy "…" as Pathname**.)
+> I can see your picture, but ComfyUI needs its own copy: drop it into the box below (or click the box to choose the
+> file).
 
-If it is already in ComfyUI (they used it in a Load Image box), list what is there instead and let them pick by name.
+When the box is not available, offer both other ways at once, with the click path:
+
+> ComfyUI needs its own copy of your picture. Either find the file, hold **Shift** and right-click it, choose **Copy
+> as path**, and paste that here (on a Mac: right-click it, hold **Option**, and choose **Copy "…" as Pathname**).
+> Or drag the picture into a **Load Image** box in ComfyUI and tell me its name.
+
+If it is already in ComfyUI (they used it in a Load Image box), list what is there and let them pick by name. Do not
+suggest the Picture folder setting as a way to load a picture: it only limits where pictures may come from.
 Then ask how closely to follow it: "keep it and just restyle", "keep the composition, repaint it", or "use it as a
 loose starting point".
 

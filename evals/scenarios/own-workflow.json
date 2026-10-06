@@ -1,0 +1,47 @@
+{
+ "id": "own-workflow",
+ "title": "Mid-project: bend a copy of her own run",
+ "tags": [
+  "core",
+  "first-use"
+ ],
+ "max_turns": 5,
+ "setup": [
+  {
+   "do": "user_run",
+   "kind": "plain",
+   "prompt": "a harbour at night, boats and lanterns, ink and wash",
+   "seed": 4242,
+   "prefix": "scenario_artist/harbour"
+  }
+ ],
+ "why": "Someone arrives with a workflow of their own. The agent must work on a copy of their last run and leave everything of theirs alone.",
+ "artist": {
+  "who": "Priya, a concept artist in the middle of a piece. She is protective of her setup.",
+  "wants": "To see what bending does to her harbour picture without anything of hers being changed.",
+  "style": "Careful, asks before agreeing.",
+  "rules": [
+   "When the assistant says back what your run is made of, confirm it: yes, that's it.",
+   "On the board pick the version that keeps the boats readable.",
+   "If asked where to start from: explore fresh for now.",
+   "Then ask: can I open that version in ComfyUI? and is my own workflow still as it was?"
+  ],
+  "ends_when": "the assistant has answered about opening the version and about your own workflow."
+ },
+ "first_message": "I'm in the middle of a piece in ComfyUI and I just ran it. Can we try bending on it without wrecking my setup?",
+ "expected": [
+  "Reads her last run with inspect_run without asking her to run it again (she said she just did), and says back in one line what it is made of (model, steps, the gist of the prompt)",
+  "Bends copies of her run (bend_run with her run's prompt_id): her model, settings and seed are kept and her own picture is the original, with no extra baseline render and no preset rebuilt to look like hers",
+  "With no goal given: three versions, one gentle bend per part of the model (surprise_bends with wild=false, or gentle hand-picked ones)",
+  "Does not free graphics memory, switch models or change her settings",
+  "Shows the versions against her own picture on the pick board, with plain captions",
+  "On her pick: hands her the bent copy (propose_workflow) and says what it is (a copy of her workflow with one new group); if only pictures were possible, says where to add the box by hand instead",
+  "Says plainly that her own workflow was never written or changed",
+  "Respects \"explore fresh\": stores none (kb_sources) or never consults the knowledge base; find_recipes is not called",
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead"
+ ],
+ "watch_for": [
+  "Is the one-line description of her run right?",
+  "Would she trust the answer about her setup?"
+ ]
+}

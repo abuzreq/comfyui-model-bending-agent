@@ -2,9 +2,9 @@
   "manifest_version": "0.4",
   "name": "comfyui-bending",
   "display_name": "ComfyUI Model Bending",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Lets Claude drive your local ComfyUI for the comfyui-model-bending skill: build and run bend workflows for pictures and videos, start from your own picture, compare results, propose boards to your canvas, read your feedback, and render bend animations.",
-  "long_description": "Companion to the comfyui-model-bending skill. The skill's own code runs in a sandbox that cannot reach ComfyUI on your computer; this extension runs on your computer and does that part.\n\nRequires ComfyUI with the ComfyUI-Model-Bending node pack (0.3 or newer for bending WAN video models, which is experimental). Claude can start from a picture on your computer: it copies it into ComfyUI's input folder. Claude shows you the versions it made on a pick board right in the chat: choose one or several, say what to keep or change, and send. ComfyUI-Agent-Bridge is optional: with it, Claude can also propose workflows into your open ComfyUI tab and receive your votes and picks. ffmpeg on the PATH enables .mp4 animations (otherwise .gif).\n\nNothing leaves your machine except what Claude reads through the tools: images are downscaled JPEGs (videos: short downscaled loops), and the Agent-Bridge token is never returned.",
+  "long_description": "Companion to the comfyui-model-bending skill. The skill's own code runs in a sandbox that cannot reach ComfyUI on your computer; this extension runs on your computer and does that part.\n\nRequires ComfyUI with the ComfyUI-Model-Bending node pack (0.3 or newer for bending WAN video models, which is experimental). Claude can start from your own picture: drop it into a box in the chat, or give its path, and it goes into ComfyUI's input folder. Claude shows you the versions it made on a pick board right in the chat: choose one or several, say what to keep or change, and send. ComfyUI-Agent-Bridge is optional: with it, Claude can also propose workflows into your open ComfyUI tab and receive your votes and picks. When you ask for an animation (a bend growing step by step, as a short looping video), it is saved in ComfyUI's output folder, inside agent_bending, where ComfyUI saves the pictures it makes. ffmpeg on the PATH makes them .mp4 (otherwise .gif).\n\nNothing leaves your machine except what Claude reads through the tools: images are downscaled JPEGs (videos: short downscaled loops), and the Agent-Bridge token is never returned.",
   "author": {
     "name": "Ahmed Abuzuraiq"
   },
@@ -32,7 +32,8 @@
       ],
       "env": {
         "COMFYUI_URL": "${user_config.comfyui_url}",
-        "COMFY_BENDING_WORKDIR": "${user_config.workdir}"
+        "COMFY_BENDING_PICTURE_DIRS": "${user_config.picture_dir}",
+        "AGENT_BRIDGE_TOKEN": "${user_config.bridge_token}"
       }
     }
   },
@@ -40,15 +41,21 @@
     "comfyui_url": {
       "type": "string",
       "title": "ComfyUI address",
-      "description": "Where your ComfyUI server runs.",
+      "description": "Where your ComfyUI server runs. Keep the default when ComfyUI runs on this computer.",
       "default": "http://127.0.0.1:8188",
-      "required": true
+      "required": false
     },
-    "workdir": {
+    "picture_dir": {
       "type": "directory",
-      "title": "Working folder",
-      "description": "Where built workflows and animations are saved.",
-      "default": "${HOME}/.comfyui-model-bending",
+      "title": "Picture folder (optional)",
+      "description": "If set, Claude can start only from pictures inside this folder (and its subfolders), for example your Pictures folder. Leave empty to allow any picture you point it to.",
+      "required": false
+    },
+    "bridge_token": {
+      "type": "string",
+      "title": "Agent-Bridge token (only for a ComfyUI on another machine)",
+      "description": "Leave empty when ComfyUI runs on this computer: the token is then read automatically. For a ComfyUI on another machine, paste the contents of ComfyUI/user/agent_bridge/token from that machine.",
+      "sensitive": true,
       "required": false
     }
   },

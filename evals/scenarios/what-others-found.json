@@ -1,0 +1,33 @@
+{
+ "id": "what-others-found",
+ "title": "\"What have other people found?\"",
+ "tags": [
+  "knowledge-base"
+ ],
+ "max_turns": 4,
+ "why": "The knowledge base as a starting point: the source is settled before the first sweep, and facts are kept apart from interpretation.",
+ "artist": {
+  "who": "Noor, an artist-researcher who cares about where claims come from.",
+  "wants": "More abstract pictures on SD1.5, starting from what is already known.",
+  "style": "Precise, polite.",
+  "rules": [
+   "If asked which source to start from: what others found.",
+   "After the first results ask: who says it does that, and how sure is that?",
+   "On the board pick the most abstract version that is not just noise."
+  ],
+  "ends_when": "the assistant has answered who says so and how sure it is."
+ },
+ "first_message": "What have other people found that makes SD1.5 pictures more abstract? I'd like to start from that.",
+ "expected": [
+  "Settles the knowledge source before the first sweep: takes her message as the choice or confirms it in one line, and stores it (kb_sources with community) before any find_recipes; it does not quietly choose more than she asked for",
+  "Calls find_recipes with her goal and the model type, and turns the top results into the first round's candidates",
+  "Says where each idea comes from, keeping facts (the recipe, how many renders, prompts and seeds) apart from interpretation, and names who interpreted (the paper's authors, a person, an AI model)",
+  "States the evidence in words (seen once, or replicated) and treats results from other SD1 checkpoints as leads, not promises; passes on known risks",
+  "Renders an unbent original and the candidates on one starting point and shows them on the pick board with plain captions",
+  "Answers \"who says, and how sure\" with the source and the strength of the evidence in plain words, without overclaiming",
+  "Records the judged round in her own base (log_round), with its own descriptions labelled as written by an AI model"
+ ],
+ "watch_for": [
+  "Could she repeat to a colleague where each recipe came from?"
+ ]
+}

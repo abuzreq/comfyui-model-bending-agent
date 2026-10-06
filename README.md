@@ -24,8 +24,8 @@ to know what a UNet is.
 - **Three levels of involvement:** it works on its own · it stops after every round so you can choose (in the
   Claude app, on a pick board right in the chat) · it puts interactive boards on your ComfyUI canvas (comparison
   switchboard, slider board, feature-map inspector) and reads your votes, picks and slider moves back.
-- **Your picture as a start:** give a picture alongside the prompt, a file on your computer or a version from an
-  earlier round, and say how closely to follow it.
+- **Your picture as a start:** give a picture alongside the prompt and say how closely to follow it. In the Claude
+  app you drop it into a box in the chat; elsewhere you paste its path. A version from an earlier round works too.
 - **Image models:** SD1.5, SDXL, Flux and SD3, with measured safe ranges for SD1.5 and SDXL.
 - **Video models (experimental):** WAN 2.1 / 2.2, text-to-video and image-to-video. Bends act on the model's
   attention, frame by frame and over time (lag, smear, reverse, a bend that grows over the clip).
@@ -68,8 +68,16 @@ The agent never installs nodes, downloads models or restarts ComfyUI without ask
 2. **The skill.** Turn on code execution (*Settings → Capabilities*). Then *Customize → Skills → **+** → Create skill →
    Upload a skill*, and choose the ZIP.
 3. **The extension.** Double-click the `.mcpb` file, or install it from *Settings → Extensions*. Claude installs
-   Python and everything else it needs. The extension's settings hold your ComfyUI address and the folder where
-   workflows and animations are saved.
+   Python and everything else it needs. Its settings:
+   - **ComfyUI address**: where ComfyUI runs (`http://127.0.0.1:8188` unless you changed it).
+   - **Picture folder** (optional): Claude starts only from pictures inside it. Leave empty to allow any picture you
+     point it to.
+   - **Agent-Bridge token** (optional): only for a ComfyUI on another machine; paste the contents of
+     `ComfyUI/user/agent_bridge/token` from that machine. On your own computer it is read automatically.
+
+   Pictures Claude makes are saved where ComfyUI saves every picture, in its `output` folder. Claude can also turn
+   a bend into a short looping video, growing step by step; ask for an animation and it is saved there too, inside
+   `output/agent_bending`.
 4. Fully quit Claude (from the system tray or menu bar) and open it again.
 5. Start ComfyUI, open a new chat and ask: *"Check my ComfyUI bending setup."*
 
@@ -111,7 +119,7 @@ The skill's tool server runs through uv, with no paths to set:
   "mcpServers": {
     "comfyui-bending": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/abuzreq/comfyui-model-bending-agent", "comfyui-bending-mcp"],
+      "args": ["--from", "git+https://github.com/abuzreq/comfyui-model-bending-agent@v0.4.0", "comfyui-bending-mcp"],
       "env": { "COMFYUI_URL": "http://127.0.0.1:8188" }
     }
   }
@@ -121,18 +129,24 @@ The skill's tool server runs through uv, with no paths to set:
 In one command, for Codex and VS Code:
 
 ```
-codex mcp add comfyui-bending -- uvx --from git+https://github.com/abuzreq/comfyui-model-bending-agent comfyui-bending-mcp
+codex mcp add comfyui-bending -- uvx --from git+https://github.com/abuzreq/comfyui-model-bending-agent@v0.4.0 comfyui-bending-mcp
 ```
 
 ```
-code --add-mcp "{\"name\":\"comfyui-bending\",\"command\":\"uvx\",\"args\":[\"--from\",\"git+https://github.com/abuzreq/comfyui-model-bending-agent\",\"comfyui-bending-mcp\"]}"
+code --add-mcp "{\"name\":\"comfyui-bending\",\"command\":\"uvx\",\"args\":[\"--from\",\"git+https://github.com/abuzreq/comfyui-model-bending-agent@v0.4.0\",\"comfyui-bending-mcp\"]}"
 ```
 
-Agents that run commands do not need it. It gives them pictures inline and one tool per step instead of script
-calls.
+The commands are pinned to a release (`@v0.4.0`); change the tag to move to a newer one, or use a commit hash
+(`@<commit>`) for a pin that can never move. Agents that run commands
+do not need the server. It gives them pictures inline and one tool per step instead of script calls.
 
 ## Try it
 
+- *"What is model bending? Show me what I could bend."*
+- *"Surprise me."*
+- *"Make this bend: `{"bends": [{"path": "middle_block.1", "module_type": "rotate", "module_args": {"angle_degrees": 90}}]}`"*
+  (for example, pasted from the web UI's Copy Bends).
+- *"I have a workflow open in ComfyUI with my own model and LoRA. Show me what bending does to it."*
 - *"Bend my SD1.5 model on 'a lighthouse on a cliff at dusk, oil painting'. Show me three options."*
 - *"Start from my painting (`C:\Users\me\Pictures\harbour.png`), keep its composition, and show me three restyles."*
 - *"I want more abstract results on SD1.4. What do others' bends suggest?"*
@@ -141,8 +155,11 @@ calls.
 - *"Make a looping video of the bend I just ran, from 0 to 180 degrees in small steps."*
 - *"Bring version B to life with WAN and bend how the video reads the picture."*
 
-At the start it asks, once, how deep to go (fast bending, steering, or explanation), how much to involve you, and
-whether to use the knowledge base. Everything it makes is logged in `bending_sessions/<session>/`.
+You do not need a goal to start. It can introduce bending with a few example pictures, surprise you with random
+bends (two within safe limits and one wild card), or bend a copy of a workflow you already have, keeping your model,
+LoRAs and settings and leaving your own workflow untouched. It shows a first result before asking how you want to
+work: how deep to go (fast bending, steering, or explanation), how much to involve you, and whether to use the
+knowledge base. Everything it makes is logged in `bending_sessions/<session>/`.
 
 ## The bend knowledge base
 
@@ -165,7 +182,7 @@ The knowledge base grows with every artist who shares what they found. Most of i
 SDXL, Flux, SD3 and WAN video are especially welcome. To contribute:
 
 1. Find your rounds in your local knowledge base: `kb/records/<model family>/session/<record id>/` inside the
-   working folder (`~/.comfyui-model-bending/` unless you changed it), with their unbent baselines in `kb/baselines/`.
+   skill's work folder (see `COMFY_BENDING_WORKDIR` below), with their unbent baselines in `kb/baselines/`.
    Ask the agent to show you which record is which round.
 2. Copy the record folders you want to share, **leaving out** `private.json` (your prompt and picture) and
    `sharing.json`. Records name your prompt only by a salted key, so nothing private goes with them.
@@ -181,15 +198,38 @@ PRs are reviewed before merging. Findings from papers or your own studies are we
 | variable | default | used for |
 |---|---|---|
 | `COMFYUI_URL` | `http://127.0.0.1:8188` | where ComfyUI runs |
-| `COMFY_BENDING_WORKDIR` | `~/.comfyui-model-bending` | workflows, animations and your knowledge base, when using the MCP server |
-| `AGENT_BRIDGE_TOKEN` | read from `ComfyUI/user/agent_bridge/token` | ComfyUI-Agent-Bridge authentication |
+| `COMFY_BENDING_WORKDIR` | the system's app-data folder (`%LOCALAPPDATA%\comfyui-model-bending`, `~/Library/Application Support/comfyui-model-bending`, `~/.local/share/comfyui-model-bending`), or `~/.comfyui-model-bending` if an earlier version made it | the skill's own files: caches, built workflows, sessions and your knowledge base. Animations are saved in ComfyUI's output folder instead |
+| `AGENT_BRIDGE_TOKEN` | read from `ComfyUI/user/agent_bridge/token` (only when ComfyUI runs on this computer) | ComfyUI-Agent-Bridge authentication |
+| `BEND_KB_DATASET` | `abuzreq/model-bending-knowledge-base` | which Hugging Face dataset the community knowledge base comes from (for a fork or mirror) |
+| `COMFY_BENDING_PICTURE_DIRS` | not set (any folder) | if set, the only folders starting pictures are read from (separated like `PATH`) |
+| `BEND_KB_REVISION` | `main` | the dataset version a knowledge-base refresh fetches: a branch, tag, or a commit to pin it |
 
-In the Claude desktop app, set the first two in the extension's settings.
+In the Claude desktop app, the extension's settings cover `COMFYUI_URL`, `AGENT_BRIDGE_TOKEN` and one picture folder
+(`COMFY_BENDING_PICTURE_DIRS`); the environment variable takes several.
+
+## Troubleshooting
+
+| what you see | what to do |
+|---|---|
+| "ComfyUI isn't running" or "cannot reach ComfyUI" | start ComfyUI, check its address in the browser, and that it matches the ComfyUI address setting |
+| "answered with a redirect" | ComfyUI sits behind a proxy or tunnel that redirects (for example `http://` to `https://`). Set the ComfyUI address to the final address. A login page in front of ComfyUI is not supported |
+| "not on this computer … AGENT_BRIDGE_TOKEN" | your ComfyUI runs on another machine: paste that machine's `ComfyUI/user/agent_bridge/token` into the Agent-Bridge token setting |
+| "pictures from this computer are not sent there" | your ComfyUI runs on another machine: upload the picture in ComfyUI (drag it into a Load Image box), then tell Claude its name |
+| "outside the picture folders" | the picture is outside your Picture folder setting: move it there, or change the setting |
+| no pick board in the Claude app's Chat tab | use the Code tab, or let Claude show the versions as pictures in the chat |
+| no picture box to drop your picture into | paste the picture's path into the chat (Windows: Shift + right-click the file, **Copy as path**), or drag it into a Load Image box in ComfyUI and tell Claude its name |
 
 ## Security and privacy
 
 - ComfyUI has no login. Started with `--listen`, anyone on your network can use it; with
   `--enable-cors-header="*"`, any website you visit can call it.
+- Point `COMFYUI_URL` only at a ComfyUI you trust. The agent sends it your workflows and starting pictures, and its
+  tools open only that server's images (and the knowledge base's example images), never other addresses or your
+  files. For a ComfyUI on another machine, set `AGENT_BRIDGE_TOKEN` yourself: the bridge token is read from a file
+  only when ComfyUI runs on your own computer. Pictures from your computer are uploaded only to a ComfyUI on your own
+  computer, and only from `COMFY_BENDING_PICTURE_DIRS` when you set it.
+- Refreshing the community knowledge base fetches one exact version of the dataset, checks that it parses, and strips
+  invisible characters from its text before the agent reads it. Set `BEND_KB_REVISION` to a commit to pin it.
 - The agent never installs nodes, downloads models, restarts ComfyUI or deletes outputs without asking, and never
   overwrites your workflows: it writes under `workflows/agent_bending/` and `workflows/agent_bridge/`.
 - Canvas sharing (Agent-Bridge) is off by default, and only you can switch it on.

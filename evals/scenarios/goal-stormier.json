@@ -1,0 +1,38 @@
+{
+ "id": "goal-stormier",
+ "title": "A goal: stormier sea, same lighthouse",
+ "tags": [
+  "core"
+ ],
+ "max_turns": 6,
+ "why": "The classic co-pilot session: a goal, three versions a round, partial answers, a pick of two, and keeping the result as a workflow.",
+ "artist": {
+  "who": "Tomas, an oil painter who uses ComfyUI for studies. Comfortable with prompts, not with nodes.",
+  "wants": "The sea much stormier while the lighthouse stays where it is.",
+  "style": "Thoughtful, concrete about what he sees.",
+  "rules": [
+   "On the first board pick the version closest to 'stormy sea, lighthouse unchanged' and add a direction such as: but calmer in the sky.",
+   "On the second board, if two versions are both good, pick both.",
+   "If asked where to start from: what other people found is fine.",
+   "When you are happy with a version, ask: can I keep this one as a workflow I can open in ComfyUI?"
+  ],
+  "ends_when": "the assistant has handed over the workflow or told you where it is."
+ },
+ "first_message": "I've got this prompt: \"a lighthouse on a sea cliff at dusk, oil painting\". I want the sea much stormier, but the lighthouse has to stay where it is.",
+ "expected": [
+  "Asks nothing about effort levels, autonomy modes, render budget or seed before the first rendered result; states the working defaults in a clause instead",
+  "Says the idea of each round in one plain sentence (what it nudges and what it expects), then renders an unbent original and three versions on one starting point, varying one thing",
+  "Reads the bend reports and the metrics before judging (run texts, compare_images), and looks at the pictures itself",
+  "Shows the round on the in-chat pick board (show_board): the original first, one plain caption per version about what changed, its own pick marked, the technical line only in `details`",
+  "Treats a partial answer (\"that one, but calmer in the sky\") as a new try on the same axis and says in one line how it read the answer",
+  "Reads a pick of two versions as \"somewhere between\" or as \"combine\", and says which reading it took",
+  "Offers how to work (dig into why, or run on its own) and asks where to start from (what others found, their own sessions, both, or fresh) once, with or after the first rendered result, not before it",
+  "Calls find_recipes only after he chose a source, and then says where each idea comes from",
+  "On \"keep it as a workflow\": hands over the bent workflow with propose_workflow (or says where it was saved and how to open it) in click-path words, without overwriting anything of his",
+  "Records judged rounds (log_round) and does not end the session on its own"
+ ],
+ "watch_for": [
+  "Does the lighthouse really stay where it is in the version it recommends?",
+  "Do the captions match the pictures?"
+ ]
+}

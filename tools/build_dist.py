@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -92,6 +93,10 @@ def stage_extension() -> dict:
     return manifest
 
 
+PINNED_DOCS = ["README.md", "pyproject.toml", "skills/comfyui-model-bending/references/setup.md",
+               "skills/comfyui-model-bending/scripts/mcp_server.py"]
+
+
 def check_versions() -> str:
     """The one version every manifest states; exits listing them when they differ."""
     found = {}
@@ -104,7 +109,15 @@ def check_versions() -> str:
             found[rel] = line.split("=", 1)[1].strip().strip('"') if line else None
     if len(set(found.values())) != 1:
         sys.exit("versions differ; bump them together:\n" + "\n".join(f"  {v}  {k}" for k, v in found.items()))
-    return next(iter(found.values()))
+    version = next(iter(found.values()))
+    stale = []  # install commands in the docs pin a release tag: it must be this one
+    for rel in PINNED_DOCS:
+        for tag in re.findall(r"comfyui-model-bending-agent@(v[\w.]+)", (ROOT / rel).read_text(encoding="utf-8")):
+            if tag != f"v{version}":
+                stale.append(f"  {tag}  {rel}")
+    if stale:
+        sys.exit(f"install commands pin another release than v{version}:\n" + "\n".join(stale))
+    return version
 
 
 def _npx(*args: str) -> subprocess.CompletedProcess | None:

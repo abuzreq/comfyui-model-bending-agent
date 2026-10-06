@@ -1,9 +1,9 @@
 # Makes the skill's MCP server runnable without paths, from this repository or (later) PyPI:
-#   uvx --from git+https://github.com/abuzreq/comfyui-model-bending-agent comfyui-bending-mcp
+#   uvx --from git+https://github.com/abuzreq/comfyui-model-bending-agent@v0.4.0 comfyui-bending-mcp
 # The wheel packages the skill's scripts/, presets/ and data/ as comfyui_bending/, the layout the server expects.
 [project]
 name = "comfyui-bending-mcp"
-version = "0.3.0"
+version = "0.4.0"
 description = "MCP server for the comfyui-model-bending agent skill: drives a local ComfyUI with ComfyUI-Model-Bending."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,7 +11,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Ahmed Abuzuraiq" }]
 keywords = ["comfyui", "mcp", "model-bending", "stable-diffusion", "video", "agent-skills"]
-dependencies = ["mcp>=2.2", "numpy>=1.24", "pillow>=10"]
+dependencies = ["mcp>=2.2,<3", "numpy>=1.24,<3", "pillow>=10,<13"]
 
 [project.urls]
 Homepage = "https://github.com/abuzreq/comfyui-model-bending-agent"
