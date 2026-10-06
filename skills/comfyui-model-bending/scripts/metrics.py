@@ -124,6 +124,24 @@ def flags(m: dict, mae: float | None) -> list[str]:
     return out
 
 
+def kb_flags(m: dict) -> list[str]:
+    """The knowledge base's pixel flags, with the thresholds its producers use (recorded as `pixel_flags`): flat,
+    extreme (near-black or near-white), clipped, noise, blob. Only noise and extreme make a render broken there
+    (kb.degenerate_reasons); the others are recorded, not judged."""
+    out = []
+    if m["std"] < 6 or m["entropy"] < 3:
+        out.append("flat")
+    if not 8 <= m["mean"] <= 247:
+        out.append("extreme")
+    if m["clipped"] > 0.40:
+        out.append("clipped")
+    if m["hf_ratio"] > 0.35:
+        out.append("noise")
+    if m["hf_ratio"] < 0.006 and m["std"] > 50:
+        out.append("blob")
+    return out
+
+
 def _mae(a: Image.Image, b: Image.Image) -> float:
     b = b.resize(a.size, Image.BILINEAR) if b.size != a.size else b
     return float(np.abs(np.asarray(b, np.float32) - np.asarray(a, np.float32)).mean())

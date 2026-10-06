@@ -269,3 +269,16 @@ def test_ids_normalise_numbers():
     b = [{**r["bends"][0], "args": {"scalar": 0.0}}]
     assert kb.record_id(r["model"], r["setup"], b) == kb.record_id(r["model"], r["setup"], [{**b[0], "args": {"scalar": 0}}])
     assert kb.record_id(r["model"], {**r["setup"], "cfg": 7.5}, r["bends"]) != kb.record_id(r["model"], floaty, r["bends"])
+
+
+def test_cells_sum_community_likes(tmp_path):
+    r1, r2 = rec(seed=1), rec(seed=2)
+    for r in (r1, r2):
+        kb.save_record(tmp_path, r, {"output.webp": b"img"}, kb.make_measurements(r["id"], {"lpips_distance": 0.3}))
+    kb.build_index(tmp_path)
+    assert "likes" not in kb.read_jsonl(tmp_path / "index" / "cells.jsonl")[0]  # no community file: no field
+    (tmp_path / "community").mkdir()
+    (tmp_path / "community" / "likes.jsonl").write_text(
+        json.dumps({"record": r1["id"], "likes": 3}) + "\n" + json.dumps({"record": r2["id"], "likes": 2}) + "\n")
+    kb.build_index(tmp_path)
+    assert kb.read_jsonl(tmp_path / "index" / "cells.jsonl")[0]["likes"] == 5

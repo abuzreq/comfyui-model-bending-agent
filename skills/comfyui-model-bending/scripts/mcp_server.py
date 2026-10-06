@@ -537,8 +537,8 @@ def surprise_bends(arch: str, n: int = 3, wild: bool = True, seed: int | None = 
 
 @tool
 def kb_status(session: str = "") -> dict:
-    """The community knowledge base in use (snapshot or latest; date and counts), the user's own records and how many
-    they marked for sharing, and the session's stored source choice."""
+    """The community knowledge base in use (snapshot or latest; date and counts), how many records the user has in
+    their own, and the session's stored source choice."""
     import kb_local
     return kb_local.status(session)
 
@@ -561,8 +561,8 @@ def log_round(prompt_id: str, session: str, verdict: str = "", words: str = "", 
 @tool
 def description_prompt() -> dict:
     """The knowledge base's prompt for describing a bent result (caption, change, keywords, effect tags), with its
-    version and steps. Use it whenever the user wants you to describe their results, e.g. when logging or sharing
-    rounds: it is the prompt the community captions were written with, so descriptions stay consistent. Look at the
+    version and steps. Use it whenever the user wants you to describe their results, e.g. when logging rounds or
+    preparing a full run: it is the prompt the community captions were written with, so descriptions stay consistent. Look at the
     unbent and bent pictures, describe only what is visible, show the user, then log_round(..., prompt_version)."""
     import kb_local
     return kb_local.description_prompt()

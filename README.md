@@ -176,22 +176,67 @@ grade, plus findings from the paper below.
 - **Your own rounds stay on your computer.** Each round you judge is added to your local knowledge base. Your prompts
   and input pictures go to a private file, and nothing is uploaded.
 
-### Contribute your findings
+### Contribute a run
 
-The knowledge base grows with every artist who shares what they found. Most of it is SD1.5 so far, so records on
-SDXL, Flux, SD3 and WAN video are especially welcome. To contribute:
+The knowledge base grows by **full runs**: one model, bent systematically across every part of its U-Net, with
+several operations and amounts. A full run shows how a model responds as a whole, which single pictures cannot.
+Most of the base is SD1.5 so far, so runs on other SD1.x fine-tunes, SD2 and SDXL are especially welcome.
 
-1. Find your rounds in your local knowledge base: `kb/records/<model family>/session/<record id>/` inside the
-   skill's work folder (see `COMFY_BENDING_WORKDIR` below), with their unbent baselines in `kb/baselines/`.
-   Ask the agent to show you which record is which round.
-2. Copy the record folders you want to share, **leaving out** `private.json` (your prompt and picture) and
-   `sharing.json`. Records name your prompt only by a salted key, so nothing private goes with them.
-3. Open a pull request on the dataset that adds them under `records/` (and their baselines under `baselines/`),
-   through the Hugging Face web page or `huggingface_hub.upload_folder(..., create_pr=True)`. Records follow the
-   dataset's `schema/record.schema.json`; every interpretation names its author, and AI-written ones name their
-   model.
+A run must cover:
+- **one model**
+- **all seven regions of the U-Net** (`in.hi`, `in.mid`, `in.lo`, `mid`, `out.lo`, `out.mid`, `out.hi`)
+- **at least three operations** with **at least three amounts each**
 
-PRs are reviewed before merging. Findings from papers or your own studies are welcome too.
+One prompt and seed is enough. More seeds and prompts make the results count as replicated. The default plan is
+84 renders per prompt and seed, about 10–30 minutes on a mid-range GPU.
+
+You need ComfyUI with [ComfyUI-Model-Bending](https://github.com/abuzreq/ComfyUI-Model-Bending), Python with Pillow
+and NumPy, and a Hugging Face account. In the skill's `scripts/` folder:
+
+```bash
+python kb_run.py init --arch sd15 --checkpoint your-model.safetensors --name "Your name" --out run.json
+```
+
+Edit `run.json`:
+- prompts with their negatives, seeds, sampler and size
+- layers: more per region for a deeper run (`kb_run.py layers --checkpoint …` lists them)
+- operations and amounts, and step windows
+- set `"agree_cc0": true`: the run is released under CC0
+
+```bash
+python kb_run.py render run.json --out my_run
+```
+
+Rendering is resumable: run it again after a stop. Each picture carries its ComfyUI workflow.
+
+```bash
+python kb_run.py check my_run
+```
+
+This checks the format and the full-run rule, and prints a coverage table.
+
+Optional extras, which the maintainer adds if you leave them out:
+- `python kb_run.py measure my_run` adds LPIPS, DINOv2 and CLIP distances and the broken-render check. It needs
+  `pip install torch lpips transformers`.
+- `python kb_run.py sheets my_run` builds contact sheets. Your agent describes them with the knowledge base's prompt
+  (`python kb_local.py describe-prompt`), then `kb_run.py add-descriptions` saves the descriptions, labelled with the
+  model that wrote them.
+
+```bash
+hf auth login
+python kb_run.py submit my_run
+```
+
+This opens a pull request on the [dataset](https://huggingface.co/datasets/abuzreq/model-bending-knowledge-base) with your own account. The maintainer reviews it, then measures and
+describes whatever the run doesn't carry. Your prompts are published with the run; your own sessions with the agent
+stay on your computer and are never part of a run.
+
+### Request a model
+
+Missing a model? Ask in the dataset's [Discussions](https://huggingface.co/datasets/abuzreq/model-bending-knowledge-base/discussions). First read the pinned post "Read first: how
+to request a model", then open a discussion titled `Model request: <name>` with its link, licence, settings and 3–5
+test prompts. Vote for requests with 👍. The maintainer runs the most wanted ones, or you can run one yourself (see
+above).
 
 ## Settings
 

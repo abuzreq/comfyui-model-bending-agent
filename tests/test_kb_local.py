@@ -93,7 +93,7 @@ def test_log_round_keeps_facts_private_and_labels_authors(comfy):
     rec = json.loads((d / "record.json").read_text())
     assert rec["setup"]["seed"] == 7 and "prompt" not in rec["setup"]
     assert json.loads((d / "private.json").read_text())["prompt"] == "my secret prompt"
-    assert json.loads((d / "sharing.json").read_text())["share_ok"] is False
+    assert not (d / "sharing.json").exists()  # rounds are never contributed one by one (full runs: kb_run.py)
     assert rec["bends"][0]["window"] == "early" and r["unknown_tags_dropped"] == ["bogus"]
     ints = {e["kind"]: e["author"] for e in kl.kb.load_interpretations(d)}
     assert ints["verdict"]["type"] == "human" and ints["note"]["type"] == "human"

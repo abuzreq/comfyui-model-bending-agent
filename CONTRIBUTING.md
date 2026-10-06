@@ -15,9 +15,10 @@ Thanks for helping. Bug reports, presets, measurements and wording fixes are all
   weights (which blocks, steps and amounts give what) can go into `references/video.md`.
 - **Wording.** Most users are artists. If the agent says something confusing, suggest plainer words for
   `references/plain-language.md`.
-- **The knowledge base.** Bends and their effects go to the
+- **The knowledge base.** Full bending runs go to the
   [Model Bending Knowledge Base](https://huggingface.co/datasets/abuzreq/model-bending-knowledge-base) as a pull
-  request there (see the README's *Contribute your findings*).
+  request there, made with `scripts/kb_run.py` (see the README's *Contribute a run*). Model requests go to the
+  dataset's Discussions (*Request a model*).
 
 ## Layout
 

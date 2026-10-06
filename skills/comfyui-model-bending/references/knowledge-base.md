@@ -128,7 +128,7 @@ keywords, prompt_version)`:
 - **Your interpretations:** `caption`, `change`, `keywords` and `effect_tags` are recorded as AI, with
   `agent_model`, which is required. Use tags from `data/kb/vocab/effects.json`; others are dropped.
 - **Describing with the knowledge base's prompt.** When the user chooses to have you describe their results
-  (when logging, or when sharing rounds), use `description_prompt()`. It is the exact prompt (`kb-caption-v1`)
+  (when logging rounds, or when describing a full run), use `description_prompt()`. It is the exact prompt (`kb-caption-v1`)
   the community captions were written with:
   1. Show yourself the unbent and the bent picture side by side (`view_images`, unbent first).
   2. Answer the prompt's four fields: `caption` (what the bent picture shows, 8–20 plain words), `change` (one
@@ -141,5 +141,8 @@ keywords, prompt_version)`:
 - **Privacy:**
   - The record is written to the user's own knowledge base only. The prompt and input image go to a private
     `private.json`.
-  - `sharing.json` starts as `share_ok: false`. Nothing is uploaded.
-  - Sharing to the community dataset is a separate step that the user must agree to, field by field.
+  - Nothing is uploaded. Session records stay on the user's computer.
+  - The community base takes **full runs**, not single rounds: `kb_run.py` plans one model across all seven U-Net
+    regions and at least 3 ops × 3 amounts, renders it, checks it and opens a pull request with the user's own
+    Hugging Face login. A run publishes its prompts under CC0, so confirm what goes in with the user before
+    `submit`.

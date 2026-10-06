@@ -33,7 +33,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "data" / "kb"
 SCHEMA_VERSION = "1.0"
-SOURCES = ("paper", "paper_reproduction", "author_experiment", "sweep", "run", "session", "artist")
+SOURCES = ("paper", "paper_reproduction", "author_experiment", "sweep", "run", "session")
 INTERPRETATION_KINDS = ("caption", "change", "keywords", "effect_tags", "concepts", "note", "verdict")
 ARCH_FAMILY = {"sd14": "sd1", "sd15": "sd1", "sd1": "sd1", "sd2": "sd2", "sd21": "sd2", "sdxl": "sdxl",
                "sd3": "sd3", "flux": "flux", "wan21": "wan", "wan21_i2v": "wan", "wan22": "wan"}
@@ -632,7 +632,8 @@ def summarize_record(d: Path, rec: dict) -> dict:
             "interpretations": latest, "n_interpretations": len(ints)}
 
 
-def aggregate_cells(summaries: list[dict], findings: list[dict] = (), cell_interpretations: list[dict] = ()) -> list[dict]:
+def aggregate_cells(summaries: list[dict], findings: list[dict] = (), cell_interpretations: list[dict] = (),
+                    likes: dict[str, int] | None = None) -> list[dict]:
     groups: dict[str, list[dict]] = defaultdict(list)
     for s in summaries:
         if s.get("cell"):
@@ -715,6 +716,8 @@ def aggregate_cells(summaries: list[dict], findings: list[dict] = (), cell_inter
                                     "by": sorted(tag_authors[t])} for t, c in tags.most_common()},
                 "keywords": [k for k, _ in keywords.most_common(12)],
                 "feedback": {"pinned": pins, "vetoed": vetoes},
+                # community likes on the cell's renders (counts only; community/likes.jsonl, from the community Space)
+                **({"likes": sum(likes.get(r["id"], 0) for r in rs)} if likes else {}),
                 "grade": evidence_grade(len(seeds), len(prompts)), "study_backed": bool(covering),
                 "findings": covering, "examples": [r["id"] for r in examples],
                 "example_paths": {r["id"]: r["dir"] for r in examples},
@@ -750,10 +753,11 @@ def recipe_template(rec: dict) -> dict:
 PROMPT_PLACEHOLDER = "<your prompt: this record's prompt was not shared>"
 
 
-def comfy_workflow(rec: dict) -> dict | None:
+def comfy_workflow(rec: dict, strict: bool = False) -> dict | None:
     """A ComfyUI API-format workflow that renders this record from its facts: the checkpoint (plus separate text
     encoder / VAE / sampling mode when the record names them), its sampler, steps, cfg, seed, size, prompt and
     negative, and its bends in one Apply Bends from JSON node with clamping off, so the amounts are used exactly.
+    strict makes the node fail on a path it would otherwise skip (a sweep must not save a render that was not bent).
     Prompts that were not shared become a placeholder. None for routes other than txt2img."""
     s, m = rec["setup"], rec["model"]
     if s.get("route", "txt2img") != "txt2img" or not m.get("checkpoint"):
@@ -785,7 +789,7 @@ def comfy_workflow(rec: dict) -> dict | None:
         model = ["4", 0]
     if bends:
         wf["5"] = {"class_type": "ApplyBendsFromJSON", "_meta": {"title": f"Bend (knowledge base record {rec['id']})"},
-                   "inputs": {"model": model, "bends_json": json.dumps(doc, indent=1), "strict": False,
+                   "inputs": {"model": model, "bends_json": json.dumps(doc, indent=1), "strict": strict,
                               "clamp": "none"}}
         model = ["5", 0]
     wf["6"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": s.get("prompt") or PROMPT_PLACEHOLDER}}
@@ -822,7 +826,8 @@ def build_index(root: Path, out: Path | None = None) -> dict:
     p = root / "cells" / "interpretations.jsonl"
     if p.exists():
         cell_ints = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
-    cells = aggregate_cells(summaries, findings, cell_ints)
+    likes = {r["record"]: r["likes"] for r in read_jsonl(root / "community" / "likes.jsonl")}
+    cells = aggregate_cells(summaries, findings, cell_ints, likes)
     aliases = id_aliases(root)
     if aliases["records"] or aliases["baselines"]:
         (out / "id_aliases.json").write_text(json.dumps(aliases, indent=1), encoding="utf-8")

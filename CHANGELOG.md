@@ -32,12 +32,17 @@ The first minutes of a session, redesigned after a workshop with artists: people
   it and adds the navigator link (the record's own page when it names a record, else its cell's). `find_recipes`
   results now carry it in their `recipe`, plus a `link` to the cell's page in the Model Bending Navigator
   (before/after examples, evidence, risks) and `example_links` to each example render's page.
-- **Sharing a render by hand.** `scripts/contribute.py prepare --bent bent.png --unbent unbent.png --agree-cc0`
-  reads the workflow ComfyUI saved inside the two pictures, checks that they share their settings, and writes a
-  knowledge-base contribution folder (record, picture, `workflow.json`, the unbent picture, an optional description)
-  ready to upload as a pull request on the dataset. `contribute.py check` checks such a folder. PNG or lossless WebP
-  only. Records gain a `contribution` block: who shared it (a name, or "not named"), by hand or with an agent, and
-  the CC0 agreement.
+- **Contributing a full run.** The knowledge base takes full runs, not single pictures: one model, all seven regions
+  of its U-Net, at least three operations with three amounts each (one prompt and seed is enough).
+  `scripts/kb_run.py` plans the run (`init`, `layers`), renders it on your ComfyUI with each picture's workflow
+  embedded (`render`, resumable), checks the format and the full-run rule with a coverage table (`check`), and opens
+  a pull request on the dataset with your own Hugging Face login (`submit`). Measuring (`measure`: LPIPS, DINOv2,
+  CLIP and the broken-render check, from the new `scripts/kb_measure.py`) and describing (`sheets`,
+  `add-descriptions`) are optional; the maintainer adds what a run leaves out. Records gain a `contribution` block:
+  who made the run (a name, or "not named"), by script or by an agent, the run, and the CC0 agreement.
+- **Request a model** in the dataset's Discussions (a pinned post explains how); the README links it.
+- **Your own rounds stay local.** `log_round` no longer writes a `sharing.json`, and `kb_status` no longer counts
+  rounds "marked for sharing": single rounds are not contributed.
 - **Describing results the knowledge base's way.** `description_prompt` (`kb_local.py describe-prompt`) gives the
   exact prompt the community captions were written with (`kb-caption-v1`), with the current effect tags. When the
   user wants the agent to describe their results, the skill now has it use this prompt and save the result with

@@ -3,7 +3,7 @@
 
 - log_round: turn a finished ComfyUI run into a record in the user's own knowledge base (the work folder's kb/). The
   prompt and input image are kept in a private sidecar (private.json) that is never shared; the record itself follows
-  the community format, so it can be shared later only if the user agrees (sharing.json).
+  the community format. Nothing is uploaded: the community base takes full runs (kb_run.py), not single rounds.
 - find: rank cells for a goal from the community knowledge base, the user's own, or both.
 - community: the snapshot bundled with the skill (data/kb/community/), or the latest index from the Hugging Face
   dataset, fetched without a token and cached in the work folder.
@@ -124,9 +124,10 @@ def log_round(prompt_id: str, session: str, verdict: str = "", words: str = "", 
             row = metrics.compare(b_url, [url])[1]
             # the community base's strict rule: pixel flags are recorded, only noise / extreme frames count as broken
             # here (no CLIP in the skill, so the CLIP part of the rule is left to the dataset's own check)
-            reasons = kb.degenerate_reasons(row["flags"])
+            flags = metrics.kb_flags(row)
+            reasons = kb.degenerate_reasons(flags)
             measurements = {"mae_vs_baseline": row["mae"], "std": row["std"], "hf_ratio": row["hf_ratio"],
-                            "pixel_flags": row["flags"],
+                            "pixel_flags": flags,
                             "degenerate": kb.measure("degenerate", bool(reasons), reasons=reasons)}
     ints = []
     target = {"record": rec["id"]}
@@ -150,9 +151,6 @@ def log_round(prompt_id: str, session: str, verdict: str = "", words: str = "", 
                        kb.make_measurements(rec["id"], measurements) if measurements else None, ints)
     if private:
         (d / "private.json").write_text(json.dumps(private, indent=1, ensure_ascii=False), encoding="utf-8")
-    if not (d / "sharing.json").exists():
-        (d / "sharing.json").write_text(json.dumps({"share_ok": False, "prompt": False, "input_image": False}),
-                                        encoding="utf-8")
     skipped = [t for t in (effect_tags or []) if t not in vocab]
     return {"record": rec["id"], "folder": str(d), "cell": kb.cell_key(kb.cell_fields(rec)) if kb.cell_fields(rec)
             else None, "bends": [{k: b.get(k) for k in ("path", "op", "args", "window", "bucket")} for b in rec["bends"]],
@@ -478,11 +476,9 @@ def status(session: str = "") -> dict:
     idx, where = community_index()
     meta = json.loads((idx / "meta.json").read_text(encoding="utf-8")) if (idx / "meta.json").exists() else {}
     own = sum(1 for _ in kb.iter_records(OWN)) if (OWN / "records").exists() else 0
-    shared = sum(1 for d, _ in kb.iter_records(OWN)
-                 if json.loads((d / "sharing.json").read_text(encoding="utf-8")).get("share_ok")) if own else 0
     return {"community": {"from": where, **{k: meta.get(k) for k in ("built", "records", "cells", "findings",
                                                                      "families")}},
-            "mine": {"folder": str(OWN), "records": own, "marked_for_sharing": shared},
+            "mine": {"folder": str(OWN), "records": own},
             **({"session_sources": session_sources(session)} if session else {})}
 
 

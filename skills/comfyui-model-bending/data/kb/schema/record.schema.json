@@ -28,8 +28,7 @@
     "author_experiment",
     "sweep",
     "run",
-    "session",
-    "artist"
+    "session"
    ]
   },
   "created": {
@@ -43,17 +42,71 @@
   },
   "contribution": {
    "type": "object",
-   "description": "who shared a contributed record (sources artist and session), how, and under which terms",
-   "required": ["by", "via", "agreed"],
+   "description": "who contributed a record and under which terms: records of a full run sent as a dataset PR (kb_run.py)",
+   "required": [
+    "by",
+    "via",
+    "agreed"
+   ],
    "properties": {
-    "by": {"type": "object", "required": ["type"], "properties": {
-      "type": {"enum": ["human"]},
-      "name": {"type": ["string", "null"], "description": "shown in the navigator; null shows \"not named\""}},
-     "additionalProperties": false},
-    "via": {"enum": ["hand", "agent"]},
-    "agent": {"type": "object", "properties": {"model": {"type": "string"}, "tool": {"type": "string"}}},
-    "agreed": {"type": "object", "required": ["license", "at"], "properties": {
-      "license": {"type": "string"}, "at": {"type": "string"}}}
+    "by": {
+     "type": "object",
+     "required": [
+      "type"
+     ],
+     "properties": {
+      "type": {
+       "enum": [
+        "human"
+       ]
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "shown in the navigator; null shows \"not named\""
+      }
+     },
+     "additionalProperties": false
+    },
+    "via": {
+     "enum": [
+      "script",
+      "agent"
+     ],
+     "description": "script = kb_run.py run by a person; agent = an AI agent drove it"
+    },
+    "agent": {
+     "type": "object",
+     "properties": {
+      "model": {
+       "type": "string"
+      },
+      "tool": {
+       "type": "string"
+      }
+     }
+    },
+    "agreed": {
+     "type": "object",
+     "required": [
+      "license",
+      "at"
+     ],
+     "properties": {
+      "license": {
+       "type": "string"
+      },
+      "at": {
+       "type": "string"
+      }
+     }
+    },
+    "run": {
+     "type": "string",
+     "description": "the contributed run this record belongs to"
+    }
    },
    "additionalProperties": false
   },

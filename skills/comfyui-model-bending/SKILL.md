@@ -316,12 +316,18 @@ Round N
    - The user's verdict and their own words go in `verdict` and `words`: these are human interpretations.
    - Your one-line caption, the change, and `effect_tags` (from `data/kb/vocab/effects.json`) are AI
      interpretations. They require `agent_model`, your exact model id.
-   - **When the user wants you to describe their results** (now, or when they share rounds), always write the
+   - **When the user wants you to describe their results**, always write the
      description with the knowledge base's prompt: `description_prompt()` (script: `kb_local.py describe-prompt`).
      Look at the unbent and the bent picture side by side, and describe only what is visible, as if you had not been
      told the bend. Show it to the user, who may edit or drop it. Then pass caption, change, keywords and effect tags
      to `log_round` with its `prompt_version`. That keeps everyone's descriptions comparable.
    - Nothing leaves the machine. The prompt and input image stay in a private sidecar.
+   - **Contributing to the community base is a full run, never single rounds:** one model, all seven U-Net regions,
+     at least 3 ops × 3 amounts (`scripts/kb_run.py`: init → render → check → submit; README *Contribute a run*).
+     When the user asks to contribute, help them plan and render a run. Show them the coverage from `check` and
+     what will be published (the run's prompts, under CC0) before `submit`, which opens a pull request with
+     **their own** Hugging Face login, only after their explicit go-ahead. Models they would like to see bent go
+     to the dataset's Discussions as a request (*Request a model*).
 
 **Convergence** (mode A only): stop when the goal is met on **≥ 2 seeds**, when the budget is spent, or after 2 rounds
 with no improvement. In modes B and C the user decides when to stop. Never end the session on your own.
@@ -651,6 +657,7 @@ Run these as protocols. Every claim gets an **evidence grade**:
 | log a round in the user's own base | `kb_local.py log PROMPT_ID --session S --verdict … --baseline ID` | `log_round(prompt_id, session, …)` |
 | describe a result the knowledge base's way | `kb_local.py describe-prompt`, then `log … --prompt-version kb-caption-v1` | `description_prompt()`, then `log_round(…, prompt_version)` |
 | knowledge base status | `kb_local.py status` | `kb_status` |
+| contribute a full run (the user's go-ahead before submit) | `kb_run.py init`, `render`, `check`, (`measure`, `sheets`, `add-descriptions`), `submit` | scripts only |
 | runs, logs, toasts | `last-run`, `logs`, `notify` | `last_runs`, `server_logs`, `notify_user` |
 | free VRAM | `comfy_canvas.py free` | `free_memory` |
 
@@ -673,8 +680,9 @@ Scripts:
 - `scripts/timesteps.py`: shows which executed steps a t-window covers.
 - `scripts/animate.py`: renders a bend in small increments as a looping video (mp4 / gif / webp). Needs Pillow;
   ffmpeg for mp4.
-- `scripts/kb.py`, `scripts/kb_local.py`, `data/kb/`: the bend knowledge base. It covers what bending which part of
-  which model produced: records, cells, findings, the effect vocabulary, and a snapshot of the community index.
+- `scripts/kb.py`, `scripts/kb_local.py`, `scripts/kb_run.py` (full runs for the community base),
+  `scripts/kb_measure.py` (optional distances), `data/kb/`: the bend knowledge base. It covers what bending which
+  part of which model produced: records, cells, findings, the effect vocabulary, and a snapshot of the community index.
   `references/knowledge-base.md` explains it.
 - `scripts/mcp_server.py`: the same capabilities as MCP tools, for runtimes whose code cannot reach ComfyUI. The
   user installs it (the comfyui-bending extension, or their MCP client's config: `references/setup.md`); do not
